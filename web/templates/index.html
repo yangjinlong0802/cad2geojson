@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>cad2geojson - CAD 转 GeoJSON</title>
+    <!-- Leaflet 地图库 -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 8px;
+            color: #1a1a1a;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 15px;
+        }
+
+        /* 主布局：上传区 + 预览区 */
+        .main-layout {
+            display: flex;
+            gap: 24px;
+            align-items: flex-start;
+        }
+
+        /* 左侧控制面板 */
+        .panel {
+            width: 380px;
+            flex-shrink: 0;
+        }
+
+        /* 右侧预览区 */
+        .preview-area {
+            flex: 1;
+            min-width: 0;
+            display: none;
+        }
+
+        .preview-area.visible {
+            display: block;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            margin-bottom: 20px;
+        }
+
+        /* 上传区域 */
+        .upload-area {
+            border: 2px dashed #d0d5dd;
+            border-radius: 10px;
+            padding: 32px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 20px;
+            background: #fafbfc;
+        }
+
+        .upload-area:hover {
+            border-color: #4f8cff;
+            background: #f0f6ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #4f8cff;
+            background: #e8f0fe;
+        }
+
+        .upload-area.has-file {
+            border-color: #34c759;
+            background: #f0faf3;
+        }
+
+        .upload-icon {
+            font-size: 36px;
+            margin-bottom: 8px;
+        }
+
+        .upload-text {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .upload-text strong {
+            color: #4f8cff;
+        }
+
+        .file-name {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #34c759;
+            font-weight: 600;
+        }
+
+        .upload-hint {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 4px;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        /* 表单 */
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="number"] {
+            width: 100%;
+            padding: 9px 11px;
+            border: 1px solid #d0d5dd;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: #4f8cff;
+        }
+
+        .form-group .hint {
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 3px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+            color: #555;
+            cursor: pointer;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+        }
+
+        /* 按钮 */
+        .btn-convert {
+            width: 100%;
+            padding: 12px;
+            background: #4f8cff;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-convert:hover {
+            background: #3a75e6;
+        }
+
+        .btn-convert:disabled {
+            background: #b0c4de;
+            cursor: not-allowed;
+        }
+
+        .btn-download {
+            width: 100%;
+            padding: 12px;
+            background: #34c759;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .btn-download:hover {
+            background: #2da44e;
+        }
+
+        /* 折叠 */
+        .collapsible-toggle {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #4f8cff;
+            margin-bottom: 10px;
+            user-select: none;
+        }
+
+        .collapsible-toggle:hover {
+            color: #3a75e6;
+        }
+
+        .collapsible-toggle .arrow {
+            transition: transform 0.2s;
+            font-size: 11px;
+        }
+
+        .collapsible-toggle.open .arrow {
+            transform: rotate(90deg);
+        }
+
+        .collapsible-content {
+            display: none;
+        }
+
+        .collapsible-content.open {
+            display: block;
+        }
+
+        /* 状态提示 */
+        .status {
+            margin-top: 12px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .status.error {
+            display: block;
+            background: #fff0f0;
+            color: #e53e3e;
+            border: 1px solid #fecaca;
+        }
+
+        .status.success {
+            display: block;
+            background: #f0faf3;
+            color: #22863a;
+            border: 1px solid #b7ebc9;
+        }
+
+        .status.loading {
+            display: block;
+            background: #f0f6ff;
+            color: #4f8cff;
+            border: 1px solid #b3d4ff;
+        }
+
+        /* 地图 */
+        #map {
+            width: 100%;
+            height: 500px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+        }
+
+        /* 统计信息 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 14px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 28px;
+            font-weight: 700;
+            color: #4f8cff;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        .stats-detail {
+            font-size: 13px;
+            color: #555;
+        }
+
+        .stats-detail table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+
+        .stats-detail th,
+        .stats-detail td {
+            padding: 6px 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+
+        .stats-detail th {
+            color: #888;
+            font-weight: 500;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 12px;
+        }
+
+        /* 图层颜色图例 */
+        .legend-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        /* 响应式：小屏幕堆叠 */
+        @media (max-width: 900px) {
+            .main-layout {
+                flex-direction: column;
+            }
+            .panel {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>cad2geojson</h1>
+        <p class="subtitle">CAD (DWG/DXF) 文件转 GeoJSON — 上传、转换、预览、下载</p>
+        <div style="text-align:center;margin-bottom:20px;">
+            <a href="/diagnostics" style="color:#4f8cff;text-decoration:none;font-size:14px;padding:6px 16px;border:1px solid #4f8cff;border-radius:6px;transition:all 0.2s;">转换诊断测试 →</a>
+        </div>
+
+        <div class="main-layout">
+            <!-- 左侧：上传和参数 -->
+            <div class="panel">
+                <div class="card">
+                    <form id="convert-form" enctype="multipart/form-data">
+                        <!-- 上传区域 -->
+                        <div class="upload-area" id="upload-area">
+                            <div class="upload-icon">&#128194;</div>
+                            <div class="upload-text">
+                                拖拽文件到这里，或 <strong>点击选择</strong>
+                            </div>
+                            <div class="upload-hint">支持 .dxf / .dwg 格式</div>
+                            <div class="file-name" id="file-name"></div>
+                            <input type="file" id="file-input" name="file" accept=".dxf,.dwg">
+                        </div>
+
+                        <!-- 坐标系 -->
+                        <div class="form-group">
+                            <label>源坐标系 (EPSG)</label>
+                            <input type="text" name="source_crs" placeholder="如 EPSG:4526，留空则不转换">
+                            <div class="hint">留空 = 使用 CAD 原始坐标</div>
+                        </div>
+
+                        <!-- 选项 -->
+                        <div class="checkbox-group">
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="expand_blocks" checked>
+                                展开块引用
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="split_layers">
+                                按图层分文件
+                            </label>
+                        </div>
+
+                        <!-- 高级选项 -->
+                        <div class="collapsible">
+                            <div class="collapsible-toggle" id="advanced-toggle">
+                                <span class="arrow">&#9654;</span> 高级选项
+                            </div>
+                            <div class="collapsible-content" id="advanced-content">
+                                <div class="form-group">
+                                    <label>解析引擎</label>
+                                    <select name="engine">
+                                        <option value="auto" selected>auto (自动选最优)</option>
+                                        <option value="ezdxf">ezdxf</option>
+                                        <option value="gdal">GDAL/fiona</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>弧线分段数</label>
+                                    <input type="number" name="arc_segments" value="64" min="8" max="512">
+                                </div>
+                                <div class="form-group">
+                                    <label>只转换图层</label>
+                                    <input type="text" name="layers" placeholder="逗号分隔，如: 道路,建筑">
+                                </div>
+                                <div class="form-group">
+                                    <label>排除图层</label>
+                                    <input type="text" name="exclude_layers" placeholder="逗号分隔，如: 标注,辅助线">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-convert" id="btn-convert" disabled>
+                            选择文件后开始转换
+                        </button>
+                    </form>
+
+                    <button class="btn-download" id="btn-download">
+                        &#11015; 下载 GeoJSON
+                    </button>
+
+                    <div class="status" id="status"></div>
+                </div>
+
+                <!-- 统计信息（转换后显示） -->
+                <div class="card" id="stats-card" style="display:none;">
+                    <div class="section-title">转换统计</div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-number" id="stat-features">0</div>
+                            <div class="stat-label">Feature 总数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="stat-layers">0</div>
+                            <div class="stat-label">图层数</div>
+                        </div>
+                    </div>
+                    <div class="stats-detail">
+                        <table id="layer-table">
+                            <thead>
+                                <tr><th>图层</th><th>数量</th><th>颜色</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：地图预览 -->
+            <div class="preview-area" id="preview-area">
+                <div class="card" style="padding:0;overflow:hidden;">
+                    <div id="map"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== 全局变量 ==========
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const fileNameDiv = document.getElementById('file-name');
+        const btnConvert = document.getElementById('btn-convert');
+        const btnDownload = document.getElementById('btn-download');
+        const form = document.getElementById('convert-form');
+        const statusDiv = document.getElementById('status');
+        const advancedToggle = document.getElementById('advanced-toggle');
+        const advancedContent = document.getElementById('advanced-content');
+        const previewArea = document.getElementById('preview-area');
+        const statsCard = document.getElementById('stats-card');
+
+        let map = null;         // Leaflet 地图实例
+        let geojsonLayer = null; // GeoJSON 图层
+        let currentTaskId = null; // 当前转换任务 ID
+        let currentGeojson = null; // 当前 GeoJSON 数据
+
+        // 为不同图层分配颜色
+        const LAYER_COLORS = [
+            '#4f8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8',
+            '#20c997', '#ff922b', '#748ffc', '#f06595', '#69db7c',
+            '#e599f7', '#38d9a9', '#ffa94d', '#91a7ff', '#63e6be',
+        ];
+
+        // ========== 文件上传 ==========
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileSelect();
+            }
+        });
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect() {
+            if (fileInput.files.length > 0) {
+                fileNameDiv.textContent = fileInput.files[0].name;
+                uploadArea.classList.add('has-file');
+                btnConvert.disabled = false;
+                btnConvert.textContent = '开始转换';
+                statusDiv.className = 'status';
+                statusDiv.style.display = 'none';
+            }
+        }
+
+        // ========== 高级选项折叠 ==========
+        advancedToggle.addEventListener('click', () => {
+            advancedToggle.classList.toggle('open');
+            advancedContent.classList.toggle('open');
+        });
+
+        // ========== 初始化地图 ==========
+        function initMap() {
+            if (map) return;
+
+            map = L.map('map', {
+                center: [30, 114],
+                zoom: 4,
+                attributionControl: false,
+            });
+
+            // 添加底图图层（OpenStreetMap）
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap',
+            }).addTo(map);
+        }
+
+        // ========== 在地图上显示 GeoJSON ==========
+        function showGeojsonOnMap(geojsonData, layerStats) {
+            // 初始化地图
+            previewArea.classList.add('visible');
+            initMap();
+
+            // 延迟一帧让 DOM 完成布局后再 invalidateSize
+            setTimeout(() => {
+                map.invalidateSize();
+
+                // 清除旧图层
+                if (geojsonLayer) {
+                    map.removeLayer(geojsonLayer);
+                }
+
+                // 构建图层名→颜色映射
+                const layerNames = Object.keys(layerStats);
+                const colorMap = {};
+                layerNames.forEach((name, i) => {
+                    colorMap[name] = LAYER_COLORS[i % LAYER_COLORS.length];
+                });
+
+                // 添加 GeoJSON 图层
+                geojsonLayer = L.geoJSON(geojsonData, {
+                    // 线和面的样式：按图层着色
+                    style: (feature) => {
+                        const layer = feature.properties?.layer || '未知';
+                        const color = colorMap[layer] || '#4f8cff';
+                        return {
+                            color: color,
+                            weight: 2,
+                            opacity: 0.8,
+                            fillColor: color,
+                            fillOpacity: 0.15,
+                        };
+                    },
+                    // 点的样式
+                    pointToLayer: (feature, latlng) => {
+                        const layer = feature.properties?.layer || '未知';
+                        const color = colorMap[layer] || '#4f8cff';
+                        return L.circleMarker(latlng, {
+                            radius: 4,
+                            fillColor: color,
+                            color: '#fff',
+                            weight: 1,
+                            fillOpacity: 0.9,
+                        });
+                    },
+                    // 点击弹出属性信息
+                    onEachFeature: (feature, layer) => {
+                        if (feature.properties) {
+                            const props = feature.properties;
+                            let html = '<div style="font-size:13px;max-width:280px;">';
+                            html += `<b>图层:</b> ${props.layer || '-'}<br>`;
+                            html += `<b>类型:</b> ${props.entity_type || '-'}<br>`;
+                            if (props.text) {
+                                html += `<b>文字:</b> ${props.text}<br>`;
+                            }
+                            if (props.block_name) {
+                                html += `<b>块名:</b> ${props.block_name}<br>`;
+                            }
+                            if (props.attributes) {
+                                html += `<b>属性:</b><br>`;
+                                for (const [k, v] of Object.entries(props.attributes)) {
+                                    html += `&nbsp;&nbsp;${k}: ${v}<br>`;
+                                }
+                            }
+                            html += '</div>';
+                            layer.bindPopup(html);
+                        }
+                    },
+                }).addTo(map);
+
+                // 自动缩放到 GeoJSON 范围
+                if (geojsonLayer.getBounds().isValid()) {
+                    map.fitBounds(geojsonLayer.getBounds(), { padding: [30, 30] });
+                }
+
+                // 更新图层颜色图例
+                updateLayerTable(layerStats, colorMap);
+            }, 50);
+        }
+
+        // ========== 更新统计信息 ==========
+        function showStats(stats) {
+            document.getElementById('stat-features').textContent = stats.feature_count;
+            document.getElementById('stat-layers').textContent = Object.keys(stats.layer_stats).length;
+            statsCard.style.display = 'block';
+        }
+
+        function updateLayerTable(layerStats, colorMap) {
+            const tbody = document.querySelector('#layer-table tbody');
+            tbody.innerHTML = '';
+            // 按数量从大到小排列
+            const sorted = Object.entries(layerStats).sort((a, b) => b[1] - a[1]);
+            for (const [name, count] of sorted) {
+                const color = colorMap[name] || '#4f8cff';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${name}</td>
+                    <td>${count}</td>
+                    <td><span class="legend-dot" style="background:${color}"></span></td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        // ========== 下载按钮 ==========
+        btnDownload.addEventListener('click', () => {
+            if (currentTaskId) {
+                // 通过后端接口下载
+                window.location.href = `/download/${currentTaskId}`;
+            } else if (currentGeojson) {
+                // 前端直接生成下载（降级方案）
+                const blob = new Blob([JSON.stringify(currentGeojson, null, 2)], {
+                    type: 'application/geo+json',
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'result.geojson';
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        });
+
+        // ========== 提交转换 ==========
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // 防止没有选择文件时提交
+            if (!fileInput.files || !fileInput.files.length) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '请先选择一个 CAD 文件';
+                return;
+            }
+
+            // 防止重复提交
+            if (btnConvert.disabled) return;
+
+            // 重置状态
+            btnConvert.disabled = true;
+            btnConvert.textContent = '转换中...';
+            btnDownload.style.display = 'none';
+            statsCard.style.display = 'none';
+            statusDiv.className = 'status loading';
+            statusDiv.textContent = '正在转换，请稍候...';
+            currentTaskId = null;
+            currentGeojson = null;
+
+            // 手动构建 FormData，确保文件被正确添加
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            // 添加其他表单字段
+            for (const input of form.querySelectorAll('input[name]:not([type="file"])')) {
+                if (input.type === 'checkbox') {
+                    if (input.checked) formData.append(input.name, 'on');
+                } else {
+                    formData.append(input.name, input.value);
+                }
+            }
+
+            try {
+                const response = await fetch('/convert', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // 转换成功
+                    currentTaskId = data.task_id;
+                    currentGeojson = data.geojson;
+
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = `转换成功！共 ${data.stats.feature_count} 个要素，${Object.keys(data.stats.layer_stats).length} 个图层`;
+
+                    // 显示下载按钮
+                    btnDownload.style.display = 'block';
+
+                    // 显示统计
+                    showStats(data.stats);
+
+                    // 地图预览
+                    showGeojsonOnMap(data.geojson, data.stats.layer_stats);
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = data.error || '转换失败';
+                }
+            } catch (err) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '网络错误: ' + err.message;
+            } finally {
+                btnConvert.disabled = false;
+                btnConvert.textContent = '开始转换';
+            }
+        });
+    </script>
+</body>
+</html>

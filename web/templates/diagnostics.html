@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>cad2geojson - 转换诊断</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        h1 { text-align: center; font-size: 28px; margin-bottom: 6px; color: #1a1a1a; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 24px; font-size: 15px; }
+
+        /* 导航 */
+        .nav { text-align: center; margin-bottom: 24px; }
+        .nav a {
+            color: #4f8cff; text-decoration: none; font-size: 14px;
+            padding: 6px 16px; border: 1px solid #4f8cff; border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .nav a:hover { background: #4f8cff; color: #fff; }
+
+        .card {
+            background: #fff; border-radius: 12px; padding: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 20px;
+        }
+
+        /* 上传区域 */
+        .upload-zone {
+            border: 2px dashed #d0d5dd; border-radius: 10px;
+            padding: 40px 16px; text-align: center; cursor: pointer;
+            transition: all 0.2s; background: #fafbfc;
+        }
+        .upload-zone:hover { border-color: #4f8cff; background: #f0f6ff; }
+        .upload-zone.dragover { border-color: #4f8cff; background: #e8f0fe; }
+        .upload-zone.has-files { border-color: #34c759; background: #f0faf3; }
+        .upload-icon { font-size: 40px; margin-bottom: 8px; }
+        .upload-text { font-size: 14px; color: #666; }
+        .upload-text strong { color: #4f8cff; }
+        .upload-hint { font-size: 12px; color: #aaa; margin-top: 4px; }
+
+        /* 文件列表 */
+        .file-list {
+            margin-top: 16px; font-size: 13px;
+        }
+        .file-list-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; background: #f8f9fa; border-radius: 6px;
+            margin-bottom: 6px;
+        }
+        .file-list-item .fname { font-weight: 500; color: #333; }
+        .file-list-item .fsize { color: #999; font-size: 12px; }
+        .file-list-item .remove-btn {
+            color: #e53e3e; cursor: pointer; font-size: 16px; padding: 0 4px;
+            border: none; background: none;
+        }
+        .file-list-item .remove-btn:hover { color: #c53030; }
+
+        /* 按钮 */
+        .btn-row { display: flex; gap: 12px; margin-top: 16px; }
+        .btn {
+            flex: 1; padding: 12px; border: none; border-radius: 10px;
+            font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+        .btn-primary { background: #4f8cff; color: #fff; }
+        .btn-primary:hover { background: #3a75e6; }
+        .btn-primary:disabled { background: #b0c4de; cursor: not-allowed; }
+        .btn-secondary { background: #e2e8f0; color: #555; }
+        .btn-secondary:hover { background: #cbd5e0; }
+
+        /* 进度条 */
+        .progress-bar {
+            width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px;
+            margin-top: 16px; overflow: hidden; display: none;
+        }
+        .progress-bar.active { display: block; }
+        .progress-fill {
+            height: 100%; background: #4f8cff; border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            font-size: 13px; color: #888; margin-top: 6px; display: none;
+        }
+        .progress-text.active { display: block; }
+
+        /* 汇总统计 */
+        .summary-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+            margin-bottom: 20px;
+        }
+        .summary-card {
+            background: #f8f9fa; border-radius: 8px; padding: 16px; text-align: center;
+        }
+        .summary-number { font-size: 32px; font-weight: 700; }
+        .summary-number.good { color: #34c759; }
+        .summary-number.warn { color: #ff9500; }
+        .summary-number.bad { color: #e53e3e; }
+        .summary-number.neutral { color: #4f8cff; }
+        .summary-label { font-size: 12px; color: #888; margin-top: 2px; }
+
+        /* 文件结果卡片 */
+        .result-card {
+            background: #fff; border-radius: 10px; padding: 18px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.06); margin-bottom: 14px;
+            border-left: 4px solid #4f8cff;
+        }
+        .result-card.has-failures { border-left-color: #ff9500; }
+        .result-card.all-failed { border-left-color: #e53e3e; }
+
+        .result-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 12px; cursor: pointer;
+        }
+        .result-filename { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+        .result-summary { font-size: 13px; color: #666; }
+        .result-rate {
+            font-size: 20px; font-weight: 700; padding: 2px 10px; border-radius: 6px;
+        }
+        .rate-good { color: #34c759; background: #f0faf3; }
+        .rate-warn { color: #ff9500; background: #fff8f0; }
+        .rate-bad { color: #e53e3e; background: #fff0f0; }
+
+        /* 展开的详情 */
+        .result-detail { display: none; }
+        .result-detail.open { display: block; }
+
+        /* 诊断表格 */
+        .diag-table {
+            width: 100%; border-collapse: collapse; font-size: 13px;
+        }
+        .diag-table th {
+            text-align: left; padding: 8px 10px; background: #f8f9fa;
+            color: #666; font-weight: 500; border-bottom: 2px solid #e2e8f0;
+        }
+        .diag-table td {
+            padding: 7px 10px; border-bottom: 1px solid #f0f0f0;
+        }
+        .diag-table tr:hover { background: #f8f9fa; }
+        .diag-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+        /* 成功率条 */
+        .rate-bar {
+            display: inline-block; width: 60px; height: 6px; background: #e2e8f0;
+            border-radius: 3px; margin-right: 6px; vertical-align: middle;
+        }
+        .rate-bar-fill {
+            height: 100%; border-radius: 3px;
+        }
+        .rate-bar-fill.good { background: #34c759; }
+        .rate-bar-fill.warn { background: #ff9500; }
+        .rate-bar-fill.bad { background: #e53e3e; }
+
+        .fail-reason {
+            font-size: 12px; color: #999; padding-left: 24px;
+        }
+        .fail-reason td { border-bottom: none; padding: 2px 10px; }
+
+        .entity-type-tag {
+            display: inline-block; padding: 1px 6px; border-radius: 4px;
+            font-size: 12px; font-family: monospace;
+        }
+        .tag-native { background: #e8f5e9; color: #2e7d32; }
+        .tag-proxy { background: #fff3e0; color: #e65100; }
+        .tag-compound { background: #e3f2fd; color: #1565c0; }
+        .tag-block { background: #f3e5f5; color: #7b1fa2; }
+        .tag-skip { background: #fce4ec; color: #c62828; }
+
+        /* 响应式 */
+        @media (max-width: 700px) {
+            .summary-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>转换诊断测试</h1>
+        <p class="subtitle">批量上传 DWG/DXF 文件，查看每种实体类型的转换成功率</p>
+        <div class="nav"><a href="/">← 返回转换页面</a></div>
+
+        <!-- 上传区 -->
+        <div class="card">
+            <div class="upload-zone" id="upload-zone">
+                <div class="upload-icon">&#128202;</div>
+                <div class="upload-text">拖拽文件到这里，或 <strong>点击选择</strong></div>
+                <div class="upload-hint">支持多选 .dwg / .dxf 文件</div>
+                <input type="file" id="file-input" multiple accept=".dxf,.dwg" style="display:none">
+            </div>
+
+            <div class="file-list" id="file-list"></div>
+
+            <div class="btn-row">
+                <button class="btn btn-primary" id="btn-start" disabled>开始诊断</button>
+                <button class="btn btn-secondary" id="btn-clear" style="display:none">清空</button>
+            </div>
+
+            <div class="progress-bar" id="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+            </div>
+            <div class="progress-text" id="progress-text"></div>
+        </div>
+
+        <!-- 汇总统计（诊断完成后显示） -->
+        <div id="summary-section" style="display:none">
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-number neutral" id="sum-files">0</div>
+                    <div class="summary-label">测试文件</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-number neutral" id="sum-total">0</div>
+                    <div class="summary-label">总实体数</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-number good" id="sum-success">0</div>
+                    <div class="summary-label">成功转换</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-number" id="sum-rate">-</div>
+                    <div class="summary-label">总成功率</div>
+                </div>
+            </div>
+
+            <!-- 全局实体类型汇总 -->
+            <div class="card" id="global-summary-card">
+                <h3 style="font-size:15px; margin-bottom:12px; color:#555;">所有文件实体类型汇总</h3>
+                <table class="diag-table" id="global-table">
+                    <thead>
+                        <tr>
+                            <th>实体类型</th>
+                            <th class="num">总数</th>
+                            <th class="num">成功</th>
+                            <th class="num">失败</th>
+                            <th>成功率</th>
+                            <th>处理方式</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 每个文件的诊断结果 -->
+        <div id="results-section"></div>
+    </div>
+
+    <script>
+        // ========== 全局状态 ==========
+        let selectedFiles = [];  // 待测试文件列表
+        let allResults = [];     // 所有诊断结果
+
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileList = document.getElementById('file-list');
+        const btnStart = document.getElementById('btn-start');
+        const btnClear = document.getElementById('btn-clear');
+        const progressBar = document.getElementById('progress-bar');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+
+        // ========== 文件上传 ==========
+        uploadZone.addEventListener('click', () => fileInput.click());
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            addFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', () => {
+            addFiles(fileInput.files);
+            fileInput.value = '';  // 允许重复选同一文件
+        });
+
+        function addFiles(files) {
+            for (const f of files) {
+                const ext = f.name.split('.').pop().toLowerCase();
+                if (ext === 'dwg' || ext === 'dxf') {
+                    // 避免重复添加同名文件
+                    if (!selectedFiles.some(sf => sf.name === f.name && sf.size === f.size)) {
+                        selectedFiles.push(f);
+                    }
+                }
+            }
+            renderFileList();
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            renderFileList();
+        }
+
+        function renderFileList() {
+            if (selectedFiles.length === 0) {
+                fileList.innerHTML = '';
+                btnStart.disabled = true;
+                btnClear.style.display = 'none';
+                uploadZone.classList.remove('has-files');
+                return;
+            }
+
+            uploadZone.classList.add('has-files');
+            btnStart.disabled = false;
+            btnClear.style.display = 'block';
+
+            fileList.innerHTML = selectedFiles.map((f, i) => `
+                <div class="file-list-item">
+                    <span class="fname">${f.name}</span>
+                    <span class="fsize">${formatSize(f.size)}</span>
+                    <button class="remove-btn" onclick="removeFile(${i})">&times;</button>
+                </div>
+            `).join('');
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        btnClear.addEventListener('click', () => {
+            selectedFiles = [];
+            renderFileList();
+            document.getElementById('summary-section').style.display = 'none';
+            document.getElementById('results-section').innerHTML = '';
+            allResults = [];
+        });
+
+        // ========== 开始诊断 ==========
+        btnStart.addEventListener('click', startDiagnosis);
+
+        async function startDiagnosis() {
+            if (selectedFiles.length === 0) return;
+
+            // 重置UI
+            allResults = [];
+            document.getElementById('results-section').innerHTML = '';
+            document.getElementById('summary-section').style.display = 'none';
+            btnStart.disabled = true;
+            btnStart.textContent = '诊断中...';
+            progressBar.classList.add('active');
+            progressText.classList.add('active');
+
+            // 逐个文件发送诊断请求
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const pct = Math.round((i / selectedFiles.length) * 100);
+                progressFill.style.width = pct + '%';
+                progressText.textContent = `正在诊断 (${i + 1}/${selectedFiles.length}): ${file.name}`;
+
+                try {
+                    const result = await diagnoseFile(file);
+                    allResults.push(result);
+                    // 实时追加结果卡片
+                    appendResultCard(result);
+                } catch (err) {
+                    allResults.push({
+                        filename: file.name,
+                        error: err.message,
+                        diagnostics: null,
+                    });
+                    appendErrorCard(file.name, err.message);
+                }
+            }
+
+            // 完成
+            progressFill.style.width = '100%';
+            progressText.textContent = `诊断完成！共 ${selectedFiles.length} 个文件`;
+            btnStart.disabled = false;
+            btnStart.textContent = '重新诊断';
+
+            // 显示汇总
+            showGlobalSummary();
+        }
+
+        async function diagnoseFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch('/diagnose', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await response.json();
+            if (!response.ok || data.error) {
+                throw new Error(data.error || '转换失败');
+            }
+            return data;
+        }
+
+        // ========== 渲染单个文件结果 ==========
+        function appendResultCard(result) {
+            const section = document.getElementById('results-section');
+            const diag = result.diagnostics;
+            if (!diag) return;
+
+            const rate = diag.success_rate;
+            const rateClass = rate >= 99 ? 'rate-good' : rate >= 80 ? 'rate-warn' : 'rate-bad';
+            const cardClass = diag.failed === 0 ? '' : rate >= 80 ? 'has-failures' : 'all-failed';
+            const cardId = 'result-' + allResults.length;
+
+            let html = `
+            <div class="result-card ${cardClass}">
+                <div class="result-header" onclick="toggleDetail('${cardId}')">
+                    <div>
+                        <div class="result-filename">${result.filename}</div>
+                        <div class="result-summary">
+                            总实体 ${diag.total} | 成功 ${diag.success} | 失败 ${diag.failed}
+                            ${diag.layer_filtered > 0 ? ' | 图层过滤 ' + diag.layer_filtered : ''}
+                        </div>
+                    </div>
+                    <div class="result-rate ${rateClass}">${rate}%</div>
+                </div>
+                <div class="result-detail" id="${cardId}">
+                    ${renderDiagTable(diag.entity_details)}
+                </div>
+            </div>`;
+
+            section.insertAdjacentHTML('beforeend', html);
+        }
+
+        function appendErrorCard(filename, error) {
+            const section = document.getElementById('results-section');
+            section.insertAdjacentHTML('beforeend', `
+                <div class="result-card all-failed">
+                    <div class="result-header">
+                        <div>
+                            <div class="result-filename">${filename}</div>
+                            <div class="result-summary" style="color:#e53e3e;">错误: ${error}</div>
+                        </div>
+                        <div class="result-rate rate-bad">失败</div>
+                    </div>
+                </div>
+            `);
+        }
+
+        function renderDiagTable(details) {
+            if (!details || details.length === 0) return '<p style="color:#999;font-size:13px;">无实体数据</p>';
+
+            // 按成功率升序排列（失败的排前面）
+            const sorted = [...details].sort((a, b) => a.success_rate - b.success_rate || b.total - a.total);
+
+            let rows = '';
+            for (const d of sorted) {
+                // 跳过块内子实体（以空格开头的是缩进标记）
+                const isBlockChild = d.entity_type.startsWith('  ');
+
+                const rateColor = d.success_rate >= 99 ? 'good' : d.success_rate >= 80 ? 'warn' : 'bad';
+                const tagClass = getMethodTagClass(d.method);
+
+                rows += `<tr${isBlockChild ? ' style="opacity:0.6"' : ''}>
+                    <td>${isBlockChild ? '&nbsp;&nbsp;' : ''}
+                        <code>${d.entity_type.trim()}</code>
+                    </td>
+                    <td class="num">${d.total}</td>
+                    <td class="num">${d.success}</td>
+                    <td class="num" style="color:${d.failed > 0 ? '#e53e3e' : '#999'}">${d.failed}</td>
+                    <td>
+                        <span class="rate-bar"><span class="rate-bar-fill ${rateColor}" style="width:${d.success_rate}%"></span></span>
+                        ${d.success_rate}%
+                    </td>
+                    <td><span class="entity-type-tag ${tagClass}">${d.method}</span></td>
+                </tr>`;
+
+                // 显示失败原因
+                if (d.fail_reasons) {
+                    for (const [reason, cnt] of Object.entries(d.fail_reasons)) {
+                        rows += `<tr class="fail-reason">
+                            <td colspan="6" style="color:#e53e3e;">
+                                &nbsp;&nbsp;&nbsp;&nbsp;└─ ${reason} (${cnt}个)
+                            </td>
+                        </tr>`;
+                    }
+                }
+            }
+
+            return `<table class="diag-table">
+                <thead>
+                    <tr>
+                        <th>实体类型</th>
+                        <th class="num">总数</th>
+                        <th class="num">成功</th>
+                        <th class="num">失败</th>
+                        <th>成功率</th>
+                        <th>处理方式</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+        }
+
+        function getMethodTagClass(method) {
+            if (method.includes('原生')) return 'tag-native';
+            if (method.includes('proxy')) return 'tag-proxy';
+            if (method.includes('分解')) return 'tag-compound';
+            if (method.includes('块')) return 'tag-block';
+            if (method.includes('跳过')) return 'tag-skip';
+            return '';
+        }
+
+        function toggleDetail(id) {
+            document.getElementById(id).classList.toggle('open');
+        }
+
+        // ========== 全局汇总 ==========
+        function showGlobalSummary() {
+            const summarySection = document.getElementById('summary-section');
+            summarySection.style.display = 'block';
+
+            // 汇总所有文件的数据
+            let totalFiles = 0, totalEntities = 0, totalSuccess = 0, totalFailed = 0;
+            // 全局实体类型合并统计
+            const globalTypes = {};
+
+            for (const r of allResults) {
+                if (!r.diagnostics) continue;
+                totalFiles++;
+                totalEntities += r.diagnostics.total;
+                totalSuccess += r.diagnostics.success;
+                totalFailed += r.diagnostics.failed;
+
+                for (const d of r.diagnostics.entity_details) {
+                    const key = d.entity_type;
+                    if (!globalTypes[key]) {
+                        globalTypes[key] = { total: 0, success: 0, failed: 0, method: d.method, fail_reasons: {} };
+                    }
+                    globalTypes[key].total += d.total;
+                    globalTypes[key].success += d.success;
+                    globalTypes[key].failed += d.failed;
+                    if (d.fail_reasons) {
+                        for (const [reason, cnt] of Object.entries(d.fail_reasons)) {
+                            globalTypes[key].fail_reasons[reason] = (globalTypes[key].fail_reasons[reason] || 0) + cnt;
+                        }
+                    }
+                }
+            }
+
+            const totalRate = totalEntities > 0 ? (totalSuccess / totalEntities * 100).toFixed(1) : 0;
+            const rateColorClass = totalRate >= 99 ? 'good' : totalRate >= 80 ? 'warn' : 'bad';
+
+            document.getElementById('sum-files').textContent = totalFiles;
+            document.getElementById('sum-total').textContent = totalEntities.toLocaleString();
+            document.getElementById('sum-success').textContent = totalSuccess.toLocaleString();
+            const sumRateEl = document.getElementById('sum-rate');
+            sumRateEl.textContent = totalRate + '%';
+            sumRateEl.className = 'summary-number ' + rateColorClass;
+
+            // 渲染全局实体类型表格
+            const tbody = document.querySelector('#global-table tbody');
+            // 转为数组并按失败数降序排列
+            const sortedGlobal = Object.entries(globalTypes)
+                .map(([type, data]) => ({
+                    entity_type: type,
+                    ...data,
+                    success_rate: data.total > 0 ? Math.round(data.success / data.total * 1000) / 10 : 0,
+                }))
+                .sort((a, b) => a.success_rate - b.success_rate || b.total - a.total);
+
+            let rows = '';
+            for (const d of sortedGlobal) {
+                const rateColor = d.success_rate >= 99 ? 'good' : d.success_rate >= 80 ? 'warn' : 'bad';
+                const tagClass = getMethodTagClass(d.method);
+                const isBlockChild = d.entity_type.startsWith('  ');
+
+                rows += `<tr${isBlockChild ? ' style="opacity:0.6"' : ''}>
+                    <td>${isBlockChild ? '&nbsp;&nbsp;' : ''}<code>${d.entity_type.trim()}</code></td>
+                    <td class="num">${d.total.toLocaleString()}</td>
+                    <td class="num">${d.success.toLocaleString()}</td>
+                    <td class="num" style="color:${d.failed > 0 ? '#e53e3e' : '#999'}">${d.failed.toLocaleString()}</td>
+                    <td>
+                        <span class="rate-bar"><span class="rate-bar-fill ${rateColor}" style="width:${d.success_rate}%"></span></span>
+                        ${d.success_rate}%
+                    </td>
+                    <td><span class="entity-type-tag ${tagClass}">${d.method}</span></td>
+                </tr>`;
+
+                if (d.failed > 0 && Object.keys(d.fail_reasons).length > 0) {
+                    for (const [reason, cnt] of Object.entries(d.fail_reasons)) {
+                        rows += `<tr class="fail-reason">
+                            <td colspan="6" style="color:#e53e3e;">
+                                &nbsp;&nbsp;&nbsp;&nbsp;└─ ${reason} (${cnt}个)
+                            </td>
+                        </tr>`;
+                    }
+                }
+            }
+            tbody.innerHTML = rows;
+        }
+    </script>
+</body>
+</html>

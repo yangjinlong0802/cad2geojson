@@ -1,0 +1,97 @@
+{
+  "说明": "常用坐标系映射表，包含中国常用的投影坐标系及其 EPSG 编码",
+
+  "北京54-3度带": {
+    "25带": {"epsg": "EPSG:2401", "description": "北京54 / 3度带高斯-克吕格投影 第25带"},
+    "26带": {"epsg": "EPSG:2402", "description": "北京54 / 3度带高斯-克吕格投影 第26带"},
+    "27带": {"epsg": "EPSG:2403", "description": "北京54 / 3度带高斯-克吕格投影 第27带"},
+    "28带": {"epsg": "EPSG:2404", "description": "北京54 / 3度带高斯-克吕格投影 第28带"},
+    "29带": {"epsg": "EPSG:2405", "description": "北京54 / 3度带高斯-克吕格投影 第29带"},
+    "30带": {"epsg": "EPSG:2406", "description": "北京54 / 3度带高斯-克吕格投影 第30带"},
+    "31带": {"epsg": "EPSG:2407", "description": "北京54 / 3度带高斯-克吕格投影 第31带"},
+    "32带": {"epsg": "EPSG:2408", "description": "北京54 / 3度带高斯-克吕格投影 第32带"},
+    "33带": {"epsg": "EPSG:2409", "description": "北京54 / 3度带高斯-克吕格投影 第33带"},
+    "34带": {"epsg": "EPSG:2410", "description": "北京54 / 3度带高斯-克吕格投影 第34带"},
+    "35带": {"epsg": "EPSG:2411", "description": "北京54 / 3度带高斯-克吕格投影 第35带"},
+    "36带": {"epsg": "EPSG:2412", "description": "北京54 / 3度带高斯-克吕格投影 第36带"},
+    "37带": {"epsg": "EPSG:2413", "description": "北京54 / 3度带高斯-克吕格投影 第37带"},
+    "38带": {"epsg": "EPSG:2414", "description": "北京54 / 3度带高斯-克吕格投影 第38带"},
+    "39带": {"epsg": "EPSG:2415", "description": "北京54 / 3度带高斯-克吕格投影 第39带"},
+    "40带": {"epsg": "EPSG:2416", "description": "北京54 / 3度带高斯-克吕格投影 第40带"},
+    "41带": {"epsg": "EPSG:2417", "description": "北京54 / 3度带高斯-克吕格投影 第41带"},
+    "42带": {"epsg": "EPSG:2418", "description": "北京54 / 3度带高斯-克吕格投影 第42带"},
+    "43带": {"epsg": "EPSG:2419", "description": "北京54 / 3度带高斯-克吕格投影 第43带"},
+    "44带": {"epsg": "EPSG:2420", "description": "北京54 / 3度带高斯-克吕格投影 第44带"},
+    "45带": {"epsg": "EPSG:2421", "description": "北京54 / 3度带高斯-克吕格投影 第45带"}
+  },
+
+  "北京54-6度带": {
+    "13带": {"epsg": "EPSG:21413", "description": "北京54 / 6度带高斯-克吕格投影 第13带"},
+    "14带": {"epsg": "EPSG:21414", "description": "北京54 / 6度带高斯-克吕格投影 第14带"},
+    "15带": {"epsg": "EPSG:21415", "description": "北京54 / 6度带高斯-克吕格投影 第15带"},
+    "16带": {"epsg": "EPSG:21416", "description": "北京54 / 6度带高斯-克吕格投影 第16带"},
+    "17带": {"epsg": "EPSG:21417", "description": "北京54 / 6度带高斯-克吕格投影 第17带"},
+    "18带": {"epsg": "EPSG:21418", "description": "北京54 / 6度带高斯-克吕格投影 第18带"},
+    "19带": {"epsg": "EPSG:21419", "description": "北京54 / 6度带高斯-克吕格投影 第19带"},
+    "20带": {"epsg": "EPSG:21420", "description": "北京54 / 6度带高斯-克吕格投影 第20带"},
+    "21带": {"epsg": "EPSG:21421", "description": "北京54 / 6度带高斯-克吕格投影 第21带"},
+    "22带": {"epsg": "EPSG:21422", "description": "北京54 / 6度带高斯-克吕格投影 第22带"},
+    "23带": {"epsg": "EPSG:21423", "description": "北京54 / 6度带高斯-克吕格投影 第23带"}
+  },
+
+  "西安80-3度带": {
+    "25带": {"epsg": "EPSG:2327", "description": "西安80 / 3度带高斯-克吕格投影 第25带"},
+    "26带": {"epsg": "EPSG:2328", "description": "西安80 / 3度带高斯-克吕格投影 第26带"},
+    "27带": {"epsg": "EPSG:2329", "description": "西安80 / 3度带高斯-克吕格投影 第27带"},
+    "28带": {"epsg": "EPSG:2330", "description": "西安80 / 3度带高斯-克吕格投影 第28带"},
+    "29带": {"epsg": "EPSG:2331", "description": "西安80 / 3度带高斯-克吕格投影 第29带"},
+    "30带": {"epsg": "EPSG:2332", "description": "西安80 / 3度带高斯-克吕格投影 第30带"},
+    "31带": {"epsg": "EPSG:2333", "description": "西安80 / 3度带高斯-克吕格投影 第31带"},
+    "32带": {"epsg": "EPSG:2334", "description": "西安80 / 3度带高斯-克吕格投影 第32带"},
+    "33带": {"epsg": "EPSG:2335", "description": "西安80 / 3度带高斯-克吕格投影 第33带"},
+    "34带": {"epsg": "EPSG:2336", "description": "西安80 / 3度带高斯-克吕格投影 第34带"},
+    "35带": {"epsg": "EPSG:2337", "description": "西安80 / 3度带高斯-克吕格投影 第35带"},
+    "36带": {"epsg": "EPSG:2338", "description": "西安80 / 3度带高斯-克吕格投影 第36带"},
+    "37带": {"epsg": "EPSG:2339", "description": "西安80 / 3度带高斯-克吕格投影 第37带"},
+    "38带": {"epsg": "EPSG:2340", "description": "西安80 / 3度带高斯-克吕格投影 第38带"},
+    "39带": {"epsg": "EPSG:2341", "description": "西安80 / 3度带高斯-克吕格投影 第39带"},
+    "40带": {"epsg": "EPSG:2342", "description": "西安80 / 3度带高斯-克吕格投影 第40带"},
+    "41带": {"epsg": "EPSG:2343", "description": "西安80 / 3度带高斯-克吕格投影 第41带"},
+    "42带": {"epsg": "EPSG:2344", "description": "西安80 / 3度带高斯-克吕格投影 第42带"},
+    "43带": {"epsg": "EPSG:2345", "description": "西安80 / 3度带高斯-克吕格投影 第43带"},
+    "44带": {"epsg": "EPSG:2346", "description": "西安80 / 3度带高斯-克吕格投影 第44带"},
+    "45带": {"epsg": "EPSG:2347", "description": "西安80 / 3度带高斯-克吕格投影 第45带"}
+  },
+
+  "CGCS2000-3度带": {
+    "25带": {"epsg": "EPSG:4513", "description": "CGCS2000 / 3度带高斯-克吕格投影 第25带"},
+    "26带": {"epsg": "EPSG:4514", "description": "CGCS2000 / 3度带高斯-克吕格投影 第26带"},
+    "27带": {"epsg": "EPSG:4515", "description": "CGCS2000 / 3度带高斯-克吕格投影 第27带"},
+    "28带": {"epsg": "EPSG:4516", "description": "CGCS2000 / 3度带高斯-克吕格投影 第28带"},
+    "29带": {"epsg": "EPSG:4517", "description": "CGCS2000 / 3度带高斯-克吕格投影 第29带"},
+    "30带": {"epsg": "EPSG:4518", "description": "CGCS2000 / 3度带高斯-克吕格投影 第30带"},
+    "31带": {"epsg": "EPSG:4519", "description": "CGCS2000 / 3度带高斯-克吕格投影 第31带"},
+    "32带": {"epsg": "EPSG:4520", "description": "CGCS2000 / 3度带高斯-克吕格投影 第32带"},
+    "33带": {"epsg": "EPSG:4521", "description": "CGCS2000 / 3度带高斯-克吕格投影 第33带"},
+    "34带": {"epsg": "EPSG:4522", "description": "CGCS2000 / 3度带高斯-克吕格投影 第34带"},
+    "35带": {"epsg": "EPSG:4523", "description": "CGCS2000 / 3度带高斯-克吕格投影 第35带"},
+    "36带": {"epsg": "EPSG:4524", "description": "CGCS2000 / 3度带高斯-克吕格投影 第36带"},
+    "37带": {"epsg": "EPSG:4525", "description": "CGCS2000 / 3度带高斯-克吕格投影 第37带"},
+    "38带": {"epsg": "EPSG:4526", "description": "CGCS2000 / 3度带高斯-克吕格投影 第38带"},
+    "39带": {"epsg": "EPSG:4527", "description": "CGCS2000 / 3度带高斯-克吕格投影 第39带"},
+    "40带": {"epsg": "EPSG:4528", "description": "CGCS2000 / 3度带高斯-克吕格投影 第40带"},
+    "41带": {"epsg": "EPSG:4529", "description": "CGCS2000 / 3度带高斯-克吕格投影 第41带"},
+    "42带": {"epsg": "EPSG:4530", "description": "CGCS2000 / 3度带高斯-克吕格投影 第42带"},
+    "43带": {"epsg": "EPSG:4531", "description": "CGCS2000 / 3度带高斯-克吕格投影 第43带"},
+    "44带": {"epsg": "EPSG:4532", "description": "CGCS2000 / 3度带高斯-克吕格投影 第44带"},
+    "45带": {"epsg": "EPSG:4533", "description": "CGCS2000 / 3度带高斯-克吕格投影 第45带"}
+  },
+
+  "常用坐标系": {
+    "WGS84": {"epsg": "EPSG:4326", "description": "WGS84 经纬度坐标系（GeoJSON 标准）"},
+    "WGS84-UTM-49N": {"epsg": "EPSG:32649", "description": "WGS84 / UTM 49N（覆盖东经108°-114°）"},
+    "WGS84-UTM-50N": {"epsg": "EPSG:32650", "description": "WGS84 / UTM 50N（覆盖东经114°-120°）"},
+    "WGS84-UTM-51N": {"epsg": "EPSG:32651", "description": "WGS84 / UTM 51N（覆盖东经120°-126°）"},
+    "Web墨卡托": {"epsg": "EPSG:3857", "description": "Web 墨卡托投影（百度/高德/谷歌地图常用）"}
+  }
+}
