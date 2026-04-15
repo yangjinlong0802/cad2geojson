@@ -1,0 +1,35 @@
+# 虚拟环境
+.venv/
+
+# Python 编译缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 打包产物
+*.egg-info/
+dist/
+build/
+
+# 输出文件
+output/
+
+# 大型二进制依赖（本地安装，不入库）
+gdal-3.12.3/
+
+# 样本文件：只保留 samples/ 下已手动添加的小文件
+# （默认忽略所有 DWG/DXF，再用 ! 白名单保留需要的）
+samples/*.dwg
+samples/*.dxf
+
+# 环境变量
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# 测试缓存
+.pytest_cache/
