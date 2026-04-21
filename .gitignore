@@ -20,8 +20,8 @@ gdal-3.12.3/
 
 # 样本文件：只保留 samples/ 下已手动添加的小文件
 # （默认忽略所有 DWG/DXF，再用 ! 白名单保留需要的）
-samples/*.dwg
-samples/*.dxf
+samples/**
+
 
 # 环境变量
 .env
