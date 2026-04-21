@@ -30,6 +30,6 @@ samples/**
 # IDE
 .vscode/
 .idea/
-
+.claude/
 # 测试缓存
 .pytest_cache/
