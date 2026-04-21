@@ -346,7 +346,7 @@ def _write_feature(
             entity_type = props.get("entity_type", "")
             text_content = props.get("text", "")
             if entity_type in ("TEXT", "MTEXT") and text_content:
-                # 写入 TEXT 实体，保留文字内容（含中文）和样式参数
+                # 写入 TEXT 实体，保留文字内容（含中文）、旋转角和对齐方式
                 _write_text(
                     msp,
                     coords,
@@ -355,6 +355,8 @@ def _write_feature(
                     transformer,
                     height=props.get("text_height", 2.5),
                     rotation=props.get("text_rotation", 0.0),
+                    halign=props.get("text_halign", 0),
+                    valign=props.get("text_valign", 0),
                 )
             else:
                 # 普通点 → POINT 实体
@@ -441,12 +443,21 @@ def _write_text(
     transformer,
     height: float = 2.5,
     rotation: float = 0.0,
+    halign: int = 0,
+    valign: int = 0,
 ) -> None:
     """
     将文字内容写入 DXF TEXT 实体，支持中文字符。
 
     优先使用 CHINESE 文字样式（宋体 TTF），该样式在 _create_dxf_doc() 中创建。
     若样式不存在，则使用 STANDARD 样式（可能无法正确显示中文）。
+
+    对齐还原逻辑：
+    - GeoJSON 中存储的 Point 坐标（由 dxf_parser.parse_text 决定）：
+        * 左对齐（halign=0, valign=0）：等于 DXF insert 点
+        * 其他对齐：等于 DXF align_point 点（真实定位锚点）
+    - 写入时：将该坐标同时赋给 insert 和 align_point，并设置 halign/valign
+      ezdxf 对非左对齐 TEXT 必须同时设置 align_point，否则定位不生效
 
     参数:
         msp:          ezdxf Modelspace
@@ -455,7 +466,9 @@ def _write_text(
         layer:        目标图层名
         transformer:  坐标转换器（可为 None）
         height:       文字高度（默认 2.5）
-        rotation:     旋转角度，单位为度（默认 0）
+        rotation:     旋转角度，单位为度（默认 0）；竖向文字通常为 90° 或 270°
+        halign:       水平对齐（0=左, 1=居中, 2=右, 3=两端对齐, 4=正中, 5=适合）
+        valign:       垂直对齐（0=基线, 1=下, 2=中, 3=上）
     """
     x, y = _transform_coord(coords, transformer)
     z = float(coords[2]) if len(coords) > 2 else 0.0
@@ -468,6 +481,8 @@ def _write_text(
         "insert": (x, y, z),
         "height": text_height,
         "rotation": rotation or 0.0,
+        "halign": halign,
+        "valign": valign,
     }
 
     # 优先使用支持中文的 CHINESE 样式
@@ -477,7 +492,13 @@ def _write_text(
     except Exception:
         pass
 
-    msp.add_text(text_content, dxfattribs=dxfattribs)
+    text_entity = msp.add_text(text_content, dxfattribs=dxfattribs)
+
+    # 非左/基线对齐时，必须显式设置 align_point
+    # ezdxf 要求：凡 halign != 0 或 valign != 0，都需要 align_point 才能正确定位
+    # GeoJSON 中存储的坐标已经是 align_point，直接赋回即可
+    if halign != 0 or valign != 0:
+        text_entity.dxf.align_point = (x, y, z)
 
 
 def _write_linestring(

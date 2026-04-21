@@ -304,6 +304,19 @@ def parse_text(entity: DXFEntity) -> Dict[str, Any]:
 
     TEXT 是单行文字实体，包含插入点和文字内容。
 
+    DXF TEXT 有两个坐标属性：
+    - insert (group 10)：第一定义点（左对齐时即文字起点）
+    - align_point (group 11)：第二定义点（非左对齐时的对齐锚点）
+
+    对齐方式 (halign):
+        0=LEFT（左，默认）, 1=CENTER（中）, 2=RIGHT（右）
+        3=ALIGNED（两端对齐）, 4=MIDDLE（正中）, 5=FIT（适合）
+    垂直对齐 (valign):
+        0=BASELINE（基线，默认）, 1=BOTTOM（下）, 2=MIDDLE（中）, 3=TOP（上）
+
+    非左对齐时，align_point 才是真正的定位参考点，用它作为 GeoJSON 的 Point
+    坐标，可以在反向导出时以相同对齐方式还原到正确位置。
+
     参数:
         entity: TEXT 类型的 ezdxf 实体
 
@@ -311,12 +324,27 @@ def parse_text(entity: DXFEntity) -> Dict[str, Any]:
         包含插入点坐标和文字内容的字典
     """
     insert = entity.dxf.insert
+    halign = entity.dxf.get("halign", 0)  # 水平对齐方式（0=左对齐，1=居中，2=右对齐…）
+    valign = entity.dxf.get("valign", 0)  # 垂直对齐方式（0=基线，1=下，2=中，3=上）
+
+    # 非左/基线对齐时，优先使用 align_point 作为定位锚点
+    # align_point 是文字的对齐参考坐标，比 insert 更能反映文字的视觉位置
+    pos = (insert.x, insert.y)
+    if halign != 0 or valign != 0:
+        try:
+            ap = entity.dxf.align_point
+            pos = (ap.x, ap.y)
+        except Exception:
+            pass  # align_point 不存在时回退使用 insert
+
     return {
         "type": "TEXT",
-        "insert": (insert.x, insert.y),  # 文字插入点坐标
-        "text": entity.dxf.text,          # 文字内容
-        "height": entity.dxf.height,      # 文字高度
-        "rotation": entity.dxf.get("rotation", 0.0),  # 旋转角度（度）
+        "insert": pos,                                 # 定位参考坐标（align_point 优先）
+        "text": entity.dxf.text,                      # 文字内容
+        "height": entity.dxf.height,                  # 文字高度
+        "rotation": entity.dxf.get("rotation", 0.0),  # 旋转角度（度），竖向文字通常为 90/270
+        "halign": halign,                              # 水平对齐方式（回写时还原）
+        "valign": valign,                              # 垂直对齐方式（回写时还原）
     }
 
 
@@ -325,20 +353,24 @@ def parse_mtext(entity: DXFEntity) -> Dict[str, Any]:
     解析 MTEXT（多行文字）实体的几何数据和文本内容。
 
     MTEXT 支持多行文本、格式化等功能。
+    字高属性为 char_height（区别于 TEXT 的 height）。
+    旋转角属性为 rotation，竖向文字通常为 90° 或 270°。
 
     参数:
         entity: MTEXT 类型的 ezdxf 实体
 
     返回:
-        包含插入点坐标和文字内容的字典
+        包含插入点坐标、文字内容、字高和旋转角的字典
     """
     insert = entity.dxf.insert
     # MTEXT 的文本内容可能包含格式化标记，使用 plain_text() 获取纯文本
     plain_text = entity.plain_text()
     return {
         "type": "MTEXT",
-        "insert": (insert.x, insert.y),  # 文字插入点坐标
-        "text": plain_text,               # 纯文本内容（去除格式化标记）
+        "insert": (insert.x, insert.y),               # 文字插入点坐标
+        "text": plain_text,                            # 纯文本内容（去除格式化标记）
+        "height": entity.dxf.get("char_height", 2.5), # 字符高度（MTEXT 用 char_height）
+        "rotation": entity.dxf.get("rotation", 0.0),  # 旋转角度（度），竖向文字通常为 90/270
     }
 
 
