@@ -1,4 +1,4 @@
-# AGENTS.md - cad2geojson 项目指南
+# CLAUDE.md - cad2geojson 项目指南
 
 ## 项目简介
 Python CLI 工具，将 CAD (DWG/DXF) 文件转换为 GeoJSON 格式。
@@ -96,31 +96,30 @@ auto 模式下两个引擎都跑，按图层级别合并，每个图层取 Featu
   - 实测 7 个样本文件: 合并 8657 > ezdxf 7932 > GDAL 4485，比最优单引擎多 9.1%
   - architectural 文件提升最显著: 111→180 (+62.2%)
 
-- 转换诊断报告功能（2026-04-07）：
-  - 新增 EntityTypeStats 统计类，跟踪每种实体类型的解析成功/失败/原因
-  - convert() 返回 ConversionResult 对象（含输出路径 + 诊断统计）
-  - CLI 自动输出诊断报告表格（按成功率排序，失败原因缩进显示）
-  - Web API 返回 diagnostics 字段（JSON 格式的细粒度统计）
-  - 统计维度: 实体类型/总数/成功/失败/成功率/处理方式/失败原因
+- GeoJSON → DXF/DWG 反向导出（2026-04-13）：
+  - 新建 src/geojson_to_dxf.py，支持所有 GeoJSON 几何类型 → DXF 实体
+  - 按 properties.layer 属性分图层写入 DXF
+  - 支持 WGS84→工程坐标系的坐标反向转换（target-crs 参数）
+  - 支持 DWG 输出（借助 ODA File Converter，DXF→DWG）
+  - CLI 新增 export 子命令，Web 新增 POST /export 端点
+  - Web 前端添加"导出 DXF/DWG"区块（含格式选择+目标坐标系输入）
+  - 24 个新单元测试全部通过（总计 56 个）
 
-- 大批量失败实体类型修复（2026-04-08）：
-  - 新增原生解析：RAY/XLINE（→Point）、TOLERANCE/SHAPE/ACAD_TABLE（→Point）
-  - 新增原生解析：IMAGE（→边界Polygon）、PDFUNDERLAY/PDFREFERENCE（→Point）
-  - 新增原生解析：HELIX（→投影圆Polygon）、MESH（→面片MultiPolygon）
-  - ARC_DIMENSION 添加到复合实体分解（virtual_entities()），与 DIMENSION 同路径
-  - 新增 _ACIS_ENTITY_TYPES 集合（3DSOLID/REGION/EXTRUDEDSURFACE 等）：
-    - 从 geo.proxy() 失败改为显式跳过，诊断原因更精确
-    - 统计方式标签改为"ACIS不支持"，告知用户需要 ACIS 内核
-  - XLINE 属性名修正：ezdxf 中使用 dxf.start 而非 dxf.point
+- 反向导出中文文字支持 + Web 去除地图预览（2026-04-15）：
+  - 修复 GeoJSON→DXF 时中文文字丢失的问题：TEXT/MTEXT 实体对应的 Point 不再写为
+    POINT 实体，而是写为 DXF TEXT 实体并还原文字内容
+  - geojson_builder.py：为 TEXT/MTEXT Feature 额外保存 text_height/text_rotation 到
+    properties，使字号和旋转角在反向导出时得以还原
+  - geojson_to_dxf.py：新增 _write_text()，创建支持中文的 CHINESE 文字样式
+    （依次尝试 simsun.ttf / msyh.ttf / simhei.ttf）
+  - Web 前端移除 Leaflet 地图预览，改为单栏布局（640px）
 
 ### 当前状态
 - CLI + Web 双入口均已完成，支持双解析引擎+按图层合并
-- 32 个单元测试全部通过
-- 实体支持覆盖率大幅提升（RAY/XLINE/TOLERANCE/SHAPE/IMAGE/HELIX/MESH/ACAD_TABLE 等均已支持）
-- ACIS 类实体（3DSOLID/REGION/EXTRUDEDSURFACE 等）明确标注为不支持，诊断更准确
+- 支持 GeoJSON → DXF/DWG 反向导出（src/geojson_to_dxf.py），含中文文字还原
+- 56 个单元测试全部通过
+- 7 个真实 DWG 样本端到端测试验证合并策略有效
+- 3D 实体类型（3DSOLID、PLANESURFACE）无法支持（需要 ACIS 内核）
 
 ### 待办
-- [ ] 样式信息保留（颜色RGB/线宽/线型 → GeoJSON properties）
-- [ ] 块结构语义保留（INSERT 信息 + explode 几何同时输出）
-- [ ] XRef 外部引用支持
-- [ ] 3DSOLID / PLANESURFACE / REGION 支持（需要 ACIS 几何内核，技术难度高）
+- [ ] 3DSOLID / PLANESURFACE 支持（需要 ACIS 几何内核，技术难度高）

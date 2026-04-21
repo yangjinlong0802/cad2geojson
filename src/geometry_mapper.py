@@ -27,13 +27,6 @@
     3DFACE          → Polygon（投影到 XY 平面）
     DIMENSION       → 分解为基本图元后分别映射
     MULTILEADER     → 分解为基本图元后分别映射
-    ARC_DIMENSION   → 分解为基本图元后分别映射
-    RAY/XLINE       → Point（起点/基点，无限线段退化为点）
-    TOLERANCE/SHAPE/ACAD_TABLE → Point（插入点）
-    IMAGE           → Polygon（图像边界四边形）
-    PDFUNDERLAY/PDFREFERENCE   → Point（插入点）
-    HELIX           → Polygon（螺旋线投影为圆）
-    MESH            → MultiPolygon（网格面投影到 XY 平面）
     其他未知类型     → 通过 ezdxf.addons.geo.proxy() 自动转换（fallback）
 """
 
@@ -516,8 +509,8 @@ def _create_shapely_geometry(
             return Polygon(points)
         return LineString(points)
 
-    elif entity_type in ("TEXT", "MTEXT", "ATTDEF"):
-        # TEXT/MTEXT/ATTDEF → Point：以插入点作为点坐标
+    elif entity_type in ("TEXT", "MTEXT"):
+        # TEXT/MTEXT → Point：以插入点作为点坐标
         return Point(geo["insert"])
 
     elif entity_type == "HATCH":
@@ -591,59 +584,6 @@ def _create_shapely_geometry(
         except Exception as e:
             logger.debug(f"geo.proxy() 几何构建失败 ({original_type}): {e}")
             return None
-
-    elif entity_type == "RAY":
-        # RAY（半无限射线）→ 起点 Point（GeoJSON 无法表示无限线段）
-        return Point(geo["start"])
-
-    elif entity_type == "XLINE":
-        # XLINE（双向无限构造线）→ 基点 Point
-        return Point(geo["point"])
-
-    elif entity_type in ("TOLERANCE", "SHAPE", "ACAD_TABLE", "UNDERLAY"):
-        # 这些实体都有插入点，统一表示为 Point
-        # TOLERANCE: 形位公差框插入点
-        # SHAPE: 符号字体插入点
-        # ACAD_TABLE: 表格左上角插入点
-        # UNDERLAY: PDF/DWF 底图插入点
-        return Point(geo["insert"])
-
-    elif entity_type == "IMAGE":
-        # IMAGE（光栅图像引用）→ 边界四边形 Polygon
-        # 如果边界点不足，退化为插入点 Point
-        boundary = geo.get("boundary", [])
-        if len(boundary) >= 4:
-            return Polygon(boundary)
-        # 退化为插入点
-        return Point(geo["insert"])
-
-    elif entity_type == "HELIX":
-        # HELIX（螺旋线）→ XY 平面投影为圆 Polygon
-        # 以轴基点为圆心，螺旋半径为半径
-        points = discretize_circle(geo["center"], geo["radius"], arc_segments)
-        return Polygon(points)
-
-    elif entity_type == "MESH":
-        # MESH（多边形网格）→ 所有面投影到 XY 平面后合并为 MultiPolygon
-        from shapely.geometry import MultiPolygon as ShapelyMultiPolygon
-        faces = geo.get("faces", [])
-        polygons = []
-        for face_verts in faces:
-            ring = list(face_verts)
-            # 确保多边形闭合（首尾重合）
-            if ring[0] != ring[-1]:
-                ring.append(ring[0])
-            try:
-                poly = Polygon(ring)
-                if not poly.is_empty:
-                    polygons.append(poly)
-            except Exception as e:
-                logger.debug(f"MESH 面多边形构建失败: {e}")
-        if not polygons:
-            return None
-        if len(polygons) == 1:
-            return polygons[0]
-        return ShapelyMultiPolygon(polygons)
 
     else:
         logger.debug(f"不支持的几何映射类型: {entity_type}")

@@ -55,17 +55,25 @@ def build_feature(
         "color": entity.color,              # CAD 颜色索引值
     }
 
-    # 文字实体：添加文字内容到属性中
+    # 文字实体：添加文字内容、高度、旋转角、对齐方式到属性中（供反向导出使用）
     if entity.text_content:
         properties["text"] = entity.text_content
-
-    # ATTDEF 实体：添加属性标签和提示信息
-    if entity.entity_type == "ATTDEF":
-        geo = entity.geometry_data
-        if geo.get("tag"):
-            properties["attdef_tag"] = geo["tag"]
-        if geo.get("prompt"):
-            properties["attdef_prompt"] = geo["prompt"]
+        if entity.entity_type in ("TEXT", "MTEXT"):
+            height = entity.geometry_data.get("height")
+            rotation = entity.geometry_data.get("rotation")
+            if height is not None:
+                properties["text_height"] = height
+            # 旋转角：竖向文字通常为 90° 或 270°，必须保存才能在反向导出时还原
+            if rotation is not None:
+                properties["text_rotation"] = rotation
+        # TEXT 的对齐方式：用于反向导出时还原文字锚点，避免位置偏移
+        if entity.entity_type == "TEXT":
+            halign = entity.geometry_data.get("halign", 0)
+            valign = entity.geometry_data.get("valign", 0)
+            if halign:
+                properties["text_halign"] = halign
+            if valign:
+                properties["text_valign"] = valign
 
     # 块引用实体：添加块名和属性信息
     if entity.block_name:

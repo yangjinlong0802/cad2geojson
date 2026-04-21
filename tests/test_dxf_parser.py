@@ -62,7 +62,7 @@ class TestParseLine:
 
         dxf_path = create_test_dxf(add_entities)
         try:
-            entities, _stats = parse_dxf(dxf_path)
+            entities = parse_dxf(dxf_path)
             assert len(entities) == 1
             entity = entities[0]
             assert entity.entity_type == "LINE"
@@ -78,7 +78,7 @@ class TestParseLine:
 
         dxf_path = create_test_dxf(add_entities)
         try:
-            entities, _stats = parse_dxf(dxf_path)
+            entities = parse_dxf(dxf_path)
             assert entities[0].layer == "测试图层"
         finally:
             os.unlink(dxf_path)
@@ -94,7 +94,7 @@ class TestParseLwpolyline:
 
         dxf_path = create_test_dxf(add_entities)
         try:
-            entities, _stats = parse_dxf(dxf_path)
+            entities = parse_dxf(dxf_path)
             assert len(entities) == 1
             entity = entities[0]
             assert entity.entity_type == "LWPOLYLINE"
@@ -113,7 +113,7 @@ class TestParseLwpolyline:
 
         dxf_path = create_test_dxf(add_entities)
         try:
-            entities, _stats = parse_dxf(dxf_path)
+            entities = parse_dxf(dxf_path)
             assert entities[0].geometry_data["is_closed"] is True
         finally:
             os.unlink(dxf_path)
@@ -129,7 +129,7 @@ class TestParseCircle:
 
         dxf_path = create_test_dxf(add_entities)
         try:
-            entities, _stats = parse_dxf(dxf_path)
+            entities = parse_dxf(dxf_path)
             entity = entities[0]
             assert entity.entity_type == "CIRCLE"
             assert entity.geometry_data["center"] == (5.0, 5.0)
@@ -153,7 +153,7 @@ class TestParseArc:
 
         dxf_path = create_test_dxf(add_entities)
         try:
-            entities, _stats = parse_dxf(dxf_path)
+            entities = parse_dxf(dxf_path)
             entity = entities[0]
             assert entity.entity_type == "ARC"
             assert entity.geometry_data["radius"] == 5.0
@@ -176,7 +176,7 @@ class TestParseText:
 
         dxf_path = create_test_dxf(add_entities)
         try:
-            entities, _stats = parse_dxf(dxf_path)
+            entities = parse_dxf(dxf_path)
             entity = entities[0]
             assert entity.entity_type == "TEXT"
             assert entity.text_content == "测试文字"
@@ -197,7 +197,7 @@ class TestLayerFilter:
 
         dxf_path = create_test_dxf(add_entities)
         try:
-            entities, _stats = parse_dxf(dxf_path, layers=["道路", "建筑"])
+            entities = parse_dxf(dxf_path, layers=["道路", "建筑"])
             assert len(entities) == 2
             layers = {e.layer for e in entities}
             assert layers == {"道路", "建筑"}
@@ -213,7 +213,7 @@ class TestLayerFilter:
 
         dxf_path = create_test_dxf(add_entities)
         try:
-            entities, _stats = parse_dxf(dxf_path, exclude_layers=["标注", "辅助线"])
+            entities = parse_dxf(dxf_path, exclude_layers=["标注", "辅助线"])
             assert len(entities) == 1
             assert entities[0].layer == "道路"
         finally:
@@ -233,7 +233,7 @@ class TestMultipleEntities:
 
         dxf_path = create_test_dxf(add_entities)
         try:
-            entities, _stats = parse_dxf(dxf_path)
+            entities = parse_dxf(dxf_path)
             types = {e.entity_type for e in entities}
             assert "LINE" in types
             assert "CIRCLE" in types

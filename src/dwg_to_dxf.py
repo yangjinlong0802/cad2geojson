@@ -25,13 +25,30 @@ logger = logging.getLogger(__name__)
 DEFAULT_ODA_PATHS = [
     # 当前开发机安装路径
     r"E:\ODAConvert\ODAFileConverter.exe",
-    # Windows 默认安装路径
+    # Windows 默认安装路径（含版本号目录，自动扫描）
     r"C:\Program Files\ODA\ODAFileConverter\ODAFileConverter.exe",
     r"C:\Program Files (x86)\ODA\ODAFileConverter\ODAFileConverter.exe",
     # Linux 默认安装路径
     "/usr/bin/ODAFileConverter",
     "/usr/local/bin/ODAFileConverter",
 ]
+
+def _find_oda_in_versioned_dir() -> str:
+    """
+    在 C:\\Program Files\\ODA\\ 下扫描带版本号的子目录，查找 ODAFileConverter.exe。
+    例如：ODAFileConverter 27.1.0、ODAFileConverter 26.x.x 等。
+    """
+    import glob
+    patterns = [
+        r"C:\Program Files\ODA\ODAFileConverter*\ODAFileConverter.exe",
+        r"C:\Program Files (x86)\ODA\ODAFileConverter*\ODAFileConverter.exe",
+    ]
+    for pattern in patterns:
+        matches = glob.glob(pattern)
+        if matches:
+            # 取最新版本（按路径排序取最后一个）
+            return sorted(matches)[-1]
+    return None
 
 
 def find_oda_converter(custom_path: str = None) -> str:
@@ -67,6 +84,12 @@ def find_oda_converter(custom_path: str = None) -> str:
     if env_path and os.path.isfile(env_path):
         logger.info(f"通过环境变量找到 ODA File Converter: {env_path}")
         return env_path
+
+    # 尝试带版本号的目录（如 ODAFileConverter 27.1.0）
+    versioned_path = _find_oda_in_versioned_dir()
+    if versioned_path:
+        logger.info(f"在版本目录找到 ODA File Converter: {versioned_path}")
+        return versioned_path
 
     # 最后尝试默认安装路径
     for default_path in DEFAULT_ODA_PATHS:

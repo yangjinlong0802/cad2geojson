@@ -17,12 +17,11 @@
 
 import logging
 import os
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from .dwg_to_dxf import convert_dwg_to_dxf, cleanup_temp_dir
-from .dxf_parser import parse_dxf, ParsedEntity, EntityTypeStats
+from .dxf_parser import parse_dxf, ParsedEntity
 from .geometry_mapper import map_entity_to_geometry
 from .coordinate_transformer import CoordinateTransformer
 from .geojson_builder import (
@@ -134,20 +133,7 @@ class ConversionConfig:
         return None
 
 
-@dataclass
-class ConversionResult:
-    """
-    转换结果，包含输出路径和诊断统计信息。
-
-    属性:
-        output_path:  输出的 GeoJSON 文件路径
-        diagnostics:  实体类型转换诊断统计（仅 ezdxf/auto 引擎有值）
-    """
-    output_path: str
-    diagnostics: Optional[EntityTypeStats] = None
-
-
-def convert(config: ConversionConfig) -> ConversionResult:
+def convert(config: ConversionConfig) -> str:
     """
     执行 CAD → GeoJSON 的完整转换流程。
 
@@ -162,7 +148,7 @@ def convert(config: ConversionConfig) -> ConversionResult:
         config: ConversionConfig 转换配置对象
 
     返回:
-        ConversionResult 对象，包含输出路径和诊断统计
+        输出的 GeoJSON 文件路径（如果按图层分割则返回输出目录路径）
 
     异常:
         FileNotFoundError: 输入文件不存在
@@ -182,8 +168,8 @@ def convert(config: ConversionConfig) -> ConversionResult:
             temp_dir = str(Path(dxf_file).parent)
 
         # ===== 第 2 步 + 第 3 步：解析 DXF + 构建 Feature =====
-        # 根据 engine 配置选择解析引擎，同时收集诊断统计
-        features, diagnostics = _step_parse_and_build(dxf_file, config)
+        # 根据 engine 配置选择解析引擎
+        features = _step_parse_and_build(dxf_file, config)
 
         if not features:
             logger.warning("未解析到任何有效实体，输出将为空的 FeatureCollection")
@@ -194,7 +180,7 @@ def convert(config: ConversionConfig) -> ConversionResult:
         logger.info(f"========== 转换完成 ==========")
         logger.info(f"输出文件: {output_path}")
 
-        return ConversionResult(output_path=output_path, diagnostics=diagnostics)
+        return output_path
 
     finally:
         # 清理 DWG → DXF 转换产生的临时目录
@@ -225,9 +211,7 @@ def _step_dwg_to_dxf(config: ConversionConfig) -> str:
     return dxf_file
 
 
-def _step_parse_and_build(
-    dxf_file: str, config: ConversionConfig
-) -> Tuple[list, Optional[EntityTypeStats]]:
+def _step_parse_and_build(dxf_file: str, config: ConversionConfig) -> list:
     """
     第 2+3 步：解析 DXF 文件 + 构建 GeoJSON Feature。
 
@@ -241,41 +225,36 @@ def _step_parse_and_build(
         config:   转换配置
 
     返回:
-        元组 (GeoJSON Feature 列表, 诊断统计信息)
-        GDAL 引擎不返回按实体类型的诊断统计，此时 diagnostics 为 None
+        GeoJSON Feature 对象列表
     """
     engine = config.engine
 
     if engine == "auto":
         return _parse_auto(dxf_file, config)
     elif engine == "gdal":
-        # GDAL 引擎没有按实体类型的细粒度统计
-        return _parse_with_gdal(dxf_file, config), None
+        return _parse_with_gdal(dxf_file, config)
     else:
         # 默认使用 ezdxf
         return _parse_with_ezdxf(dxf_file, config)
 
 
-def _parse_with_ezdxf(
-    dxf_file: str, config: ConversionConfig
-) -> Tuple[list, EntityTypeStats]:
+def _parse_with_ezdxf(dxf_file: str, config: ConversionConfig) -> list:
     """
     使用 ezdxf 引擎解析 DXF 并构建 Feature 列表。
 
     流程：ezdxf 解析 → 几何映射 → 坐标转换 → Feature 构建
-    同时收集每种实体类型的转换成功/失败统计。
 
     参数:
         dxf_file: DXF 文件路径
         config:   转换配置
 
     返回:
-        元组 (GeoJSON Feature 列表, EntityTypeStats 统计信息)
+        GeoJSON Feature 对象列表
     """
     logger.info("[步骤 2/4] 解析 DXF 文件（引擎: ezdxf）...")
 
-    # 解析 DXF，获取实体列表和解析阶段的统计
-    entities, stats = parse_dxf(
+    # 解析 DXF
+    entities = parse_dxf(
         dxf_file,
         layers=config.layers,
         exclude_layers=config.exclude_layers,
@@ -313,7 +292,7 @@ def _parse_with_ezdxf(
             fail_count += 1
 
     logger.info(f"ezdxf 引擎: 成功 {success_count} 个, 失败 {fail_count} 个")
-    return features, stats
+    return features
 
 
 def _parse_with_gdal(dxf_file: str, config: ConversionConfig) -> list:
@@ -354,9 +333,7 @@ def _parse_with_gdal(dxf_file: str, config: ConversionConfig) -> list:
     return features
 
 
-def _parse_auto(
-    dxf_file: str, config: ConversionConfig
-) -> Tuple[list, EntityTypeStats]:
+def _parse_auto(dxf_file: str, config: ConversionConfig) -> list:
     """
     自动模式：双引擎按图层合并，取每个图层的最优结果。
 
@@ -375,12 +352,12 @@ def _parse_auto(
         config:   转换配置
 
     返回:
-        元组 (合并后的 Feature 列表, ezdxf 引擎的诊断统计)
+        合并后的 Feature 列表（每个图层取最优引擎的结果）
     """
     logger.info("[自动模式] 双引擎按图层合并，取每层最优结果...")
 
-    # 先用 ezdxf（同时获取诊断统计）
-    ezdxf_features, stats = _parse_with_ezdxf(dxf_file, config)
+    # 先用 ezdxf
+    ezdxf_features = _parse_with_ezdxf(dxf_file, config)
 
     # 再用 GDAL（如果可用）
     if _check_fiona_available():
@@ -388,16 +365,16 @@ def _parse_auto(
             gdal_features = _parse_with_gdal(dxf_file, config)
         except Exception as e:
             logger.warning(f"GDAL 引擎解析失败，仅使用 ezdxf 结果: {e}")
-            return ezdxf_features, stats
+            return ezdxf_features
     else:
         logger.info("fiona 未安装，仅使用 ezdxf 引擎")
-        return ezdxf_features, stats
+        return ezdxf_features
 
     # 如果某个引擎没有结果，直接返回另一个
     if not ezdxf_features:
-        return gdal_features, stats
+        return gdal_features
     if not gdal_features:
-        return ezdxf_features, stats
+        return ezdxf_features
 
     # 按图层分组
     from collections import defaultdict
@@ -449,7 +426,7 @@ def _parse_auto(
         f"(ezdxf 胜出 {ezdxf_wins} 层, GDAL 胜出 {gdal_wins} 层)"
     )
 
-    return merged_features, stats
+    return merged_features
 
 
 def _step_output_geojson(features: list, config: ConversionConfig) -> str:

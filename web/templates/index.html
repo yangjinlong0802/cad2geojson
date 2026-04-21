@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>cad2geojson - CAD 转 GeoJSON</title>
-    <!-- Leaflet 地图库 -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         * {
             margin: 0;
@@ -22,7 +19,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 640px;
             margin: 0 auto;
             padding: 30px 20px;
         }
@@ -39,30 +36,6 @@
             color: #888;
             margin-bottom: 30px;
             font-size: 15px;
-        }
-
-        /* 主布局：上传区 + 预览区 */
-        .main-layout {
-            display: flex;
-            gap: 24px;
-            align-items: flex-start;
-        }
-
-        /* 左侧控制面板 */
-        .panel {
-            width: 380px;
-            flex-shrink: 0;
-        }
-
-        /* 右侧预览区 */
-        .preview-area {
-            flex: 1;
-            min-width: 0;
-            display: none;
-        }
-
-        .preview-area.visible {
-            display: block;
         }
 
         .card {
@@ -145,7 +118,8 @@
         }
 
         .form-group input[type="text"],
-        .form-group input[type="number"] {
+        .form-group input[type="number"],
+        .form-group select {
             width: 100%;
             padding: 9px 11px;
             border: 1px solid #d0d5dd;
@@ -155,7 +129,8 @@
             transition: border-color 0.2s;
         }
 
-        .form-group input:focus {
+        .form-group input:focus,
+        .form-group select:focus {
             border-color: #4f8cff;
         }
 
@@ -229,6 +204,69 @@
             background: #2da44e;
         }
 
+        /* 导出 DXF/DWG 区块 */
+        .export-section {
+            margin-top: 10px;
+            padding: 14px;
+            background: #f8f6ff;
+            border: 1px solid #d8b4fe;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .export-section.visible {
+            display: block;
+        }
+
+        .export-section .section-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #7c3aed;
+            margin-bottom: 10px;
+        }
+
+        .export-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .export-row .form-group {
+            flex: 1;
+            min-width: 90px;
+            margin-bottom: 0;
+        }
+
+        .btn-export {
+            padding: 9px 16px;
+            background: #7c3aed;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .btn-export:hover { background: #6d28d9; }
+
+        .btn-export:disabled {
+            background: #c4b5fd;
+            cursor: not-allowed;
+        }
+
+        .export-status {
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .export-status.error { color: #e53e3e; }
+        .export-status.loading { color: #7c3aed; }
+
         /* 折叠 */
         .collapsible-toggle {
             display: flex;
@@ -292,14 +330,6 @@
             border: 1px solid #b3d4ff;
         }
 
-        /* 地图 */
-        #map {
-            width: 100%;
-            height: 500px;
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-        }
-
         /* 统计信息 */
         .stats-grid {
             display: grid;
@@ -357,140 +387,127 @@
             color: #555;
             margin-bottom: 12px;
         }
-
-        /* 图层颜色图例 */
-        .legend-dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 6px;
-        }
-
-        /* 响应式：小屏幕堆叠 */
-        @media (max-width: 900px) {
-            .main-layout {
-                flex-direction: column;
-            }
-            .panel {
-                width: 100%;
-            }
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>cad2geojson</h1>
-        <p class="subtitle">CAD (DWG/DXF) 文件转 GeoJSON — 上传、转换、预览、下载</p>
-        <div style="text-align:center;margin-bottom:20px;">
-            <a href="/diagnostics" style="color:#4f8cff;text-decoration:none;font-size:14px;padding:6px 16px;border:1px solid #4f8cff;border-radius:6px;transition:all 0.2s;">转换诊断测试 →</a>
-        </div>
+        <p class="subtitle">CAD (DWG/DXF) 文件转 GeoJSON</p>
 
-        <div class="main-layout">
-            <!-- 左侧：上传和参数 -->
-            <div class="panel">
-                <div class="card">
-                    <form id="convert-form" enctype="multipart/form-data">
-                        <!-- 上传区域 -->
-                        <div class="upload-area" id="upload-area">
-                            <div class="upload-icon">&#128194;</div>
-                            <div class="upload-text">
-                                拖拽文件到这里，或 <strong>点击选择</strong>
-                            </div>
-                            <div class="upload-hint">支持 .dxf / .dwg 格式</div>
-                            <div class="file-name" id="file-name"></div>
-                            <input type="file" id="file-input" name="file" accept=".dxf,.dwg">
-                        </div>
+        <div class="card">
+            <form id="convert-form" enctype="multipart/form-data">
+                <!-- 上传区域 -->
+                <div class="upload-area" id="upload-area">
+                    <div class="upload-icon">&#128194;</div>
+                    <div class="upload-text">
+                        拖拽文件到这里，或 <strong>点击选择</strong>
+                    </div>
+                    <div class="upload-hint">支持 .dxf / .dwg 格式</div>
+                    <div class="file-name" id="file-name"></div>
+                    <input type="file" id="file-input" name="file" accept=".dxf,.dwg">
+                </div>
 
-                        <!-- 坐标系 -->
+                <!-- 坐标系 -->
+                <div class="form-group">
+                    <label>源坐标系 (EPSG)</label>
+                    <input type="text" name="source_crs" placeholder="如 EPSG:4526，留空则不转换">
+                    <div class="hint">留空 = 使用 CAD 原始坐标</div>
+                </div>
+
+                <!-- 选项 -->
+                <div class="checkbox-group">
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="expand_blocks" checked>
+                        展开块引用
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="split_layers">
+                        按图层分文件
+                    </label>
+                </div>
+
+                <!-- 高级选项 -->
+                <div class="collapsible">
+                    <div class="collapsible-toggle" id="advanced-toggle">
+                        <span class="arrow">&#9654;</span> 高级选项
+                    </div>
+                    <div class="collapsible-content" id="advanced-content">
                         <div class="form-group">
-                            <label>源坐标系 (EPSG)</label>
-                            <input type="text" name="source_crs" placeholder="如 EPSG:4526，留空则不转换">
-                            <div class="hint">留空 = 使用 CAD 原始坐标</div>
+                            <label>解析引擎</label>
+                            <select name="engine">
+                                <option value="auto" selected>auto (自动选最优)</option>
+                                <option value="ezdxf">ezdxf</option>
+                                <option value="gdal">GDAL/fiona</option>
+                            </select>
                         </div>
-
-                        <!-- 选项 -->
-                        <div class="checkbox-group">
-                            <label class="checkbox-item">
-                                <input type="checkbox" name="expand_blocks" checked>
-                                展开块引用
-                            </label>
-                            <label class="checkbox-item">
-                                <input type="checkbox" name="split_layers">
-                                按图层分文件
-                            </label>
+                        <div class="form-group">
+                            <label>弧线分段数</label>
+                            <input type="number" name="arc_segments" value="64" min="8" max="512">
                         </div>
-
-                        <!-- 高级选项 -->
-                        <div class="collapsible">
-                            <div class="collapsible-toggle" id="advanced-toggle">
-                                <span class="arrow">&#9654;</span> 高级选项
-                            </div>
-                            <div class="collapsible-content" id="advanced-content">
-                                <div class="form-group">
-                                    <label>解析引擎</label>
-                                    <select name="engine">
-                                        <option value="auto" selected>auto (自动选最优)</option>
-                                        <option value="ezdxf">ezdxf</option>
-                                        <option value="gdal">GDAL/fiona</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>弧线分段数</label>
-                                    <input type="number" name="arc_segments" value="64" min="8" max="512">
-                                </div>
-                                <div class="form-group">
-                                    <label>只转换图层</label>
-                                    <input type="text" name="layers" placeholder="逗号分隔，如: 道路,建筑">
-                                </div>
-                                <div class="form-group">
-                                    <label>排除图层</label>
-                                    <input type="text" name="exclude_layers" placeholder="逗号分隔，如: 标注,辅助线">
-                                </div>
-                            </div>
+                        <div class="form-group">
+                            <label>只转换图层</label>
+                            <input type="text" name="layers" placeholder="逗号分隔，如: 道路,建筑">
                         </div>
-
-                        <button type="submit" class="btn-convert" id="btn-convert" disabled>
-                            选择文件后开始转换
-                        </button>
-                    </form>
-
-                    <button class="btn-download" id="btn-download">
-                        &#11015; 下载 GeoJSON
-                    </button>
-
-                    <div class="status" id="status"></div>
-                </div>
-
-                <!-- 统计信息（转换后显示） -->
-                <div class="card" id="stats-card" style="display:none;">
-                    <div class="section-title">转换统计</div>
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-number" id="stat-features">0</div>
-                            <div class="stat-label">Feature 总数</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number" id="stat-layers">0</div>
-                            <div class="stat-label">图层数</div>
+                        <div class="form-group">
+                            <label>排除图层</label>
+                            <input type="text" name="exclude_layers" placeholder="逗号分隔，如: 标注,辅助线">
                         </div>
                     </div>
-                    <div class="stats-detail">
-                        <table id="layer-table">
-                            <thead>
-                                <tr><th>图层</th><th>数量</th><th>颜色</th></tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
                 </div>
+
+                <button type="submit" class="btn-convert" id="btn-convert" disabled>
+                    选择文件后开始转换
+                </button>
+            </form>
+
+            <button class="btn-download" id="btn-download">
+                &#11015; 下载 GeoJSON
+            </button>
+
+            <!-- 导出 DXF/DWG 区块（转换成功后显示） -->
+            <div class="export-section" id="export-section">
+                <div class="section-label">&#128190; 导出 DXF / DWG</div>
+                <div class="export-row">
+                    <div class="form-group">
+                        <label>格式</label>
+                        <select id="export-format">
+                            <option value="dxf">DXF</option>
+                            <option value="dwg">DWG</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>目标坐标系</label>
+                        <input type="text" id="export-target-crs"
+                               placeholder="如 EPSG:4526（留空不转换）">
+                    </div>
+                    <button class="btn-export" id="btn-export">导出</button>
+                </div>
+                <div class="export-status" id="export-status"></div>
             </div>
 
-            <!-- 右侧：地图预览 -->
-            <div class="preview-area" id="preview-area">
-                <div class="card" style="padding:0;overflow:hidden;">
-                    <div id="map"></div>
+            <div class="status" id="status"></div>
+        </div>
+
+        <!-- 统计信息（转换后显示） -->
+        <div class="card" id="stats-card" style="display:none;">
+            <div class="section-title">转换统计</div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="stat-features">0</div>
+                    <div class="stat-label">Feature 总数</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="stat-layers">0</div>
+                    <div class="stat-label">图层数</div>
+                </div>
+            </div>
+            <div class="stats-detail">
+                <table id="layer-table">
+                    <thead>
+                        <tr><th>图层</th><th>数量</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -500,26 +517,19 @@
         const uploadArea = document.getElementById('upload-area');
         const fileInput = document.getElementById('file-input');
         const fileNameDiv = document.getElementById('file-name');
+        const exportSection = document.getElementById('export-section');
+        const btnExport = document.getElementById('btn-export');
+        const exportStatus = document.getElementById('export-status');
         const btnConvert = document.getElementById('btn-convert');
         const btnDownload = document.getElementById('btn-download');
         const form = document.getElementById('convert-form');
         const statusDiv = document.getElementById('status');
         const advancedToggle = document.getElementById('advanced-toggle');
         const advancedContent = document.getElementById('advanced-content');
-        const previewArea = document.getElementById('preview-area');
         const statsCard = document.getElementById('stats-card');
 
-        let map = null;         // Leaflet 地图实例
-        let geojsonLayer = null; // GeoJSON 图层
-        let currentTaskId = null; // 当前转换任务 ID
-        let currentGeojson = null; // 当前 GeoJSON 数据
-
-        // 为不同图层分配颜色
-        const LAYER_COLORS = [
-            '#4f8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8',
-            '#20c997', '#ff922b', '#748ffc', '#f06595', '#69db7c',
-            '#e599f7', '#38d9a9', '#ffa94d', '#91a7ff', '#63e6be',
-        ];
+        let currentTaskId = null;
+        let currentGeojson = null;
 
         // ========== 文件上传 ==========
         uploadArea.addEventListener('click', () => fileInput.click());
@@ -561,137 +571,72 @@
             advancedContent.classList.toggle('open');
         });
 
-        // ========== 初始化地图 ==========
-        function initMap() {
-            if (map) return;
-
-            map = L.map('map', {
-                center: [30, 114],
-                zoom: 4,
-                attributionControl: false,
-            });
-
-            // 添加底图图层（OpenStreetMap）
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap',
-            }).addTo(map);
-        }
-
-        // ========== 在地图上显示 GeoJSON ==========
-        function showGeojsonOnMap(geojsonData, layerStats) {
-            // 初始化地图
-            previewArea.classList.add('visible');
-            initMap();
-
-            // 延迟一帧让 DOM 完成布局后再 invalidateSize
-            setTimeout(() => {
-                map.invalidateSize();
-
-                // 清除旧图层
-                if (geojsonLayer) {
-                    map.removeLayer(geojsonLayer);
-                }
-
-                // 构建图层名→颜色映射
-                const layerNames = Object.keys(layerStats);
-                const colorMap = {};
-                layerNames.forEach((name, i) => {
-                    colorMap[name] = LAYER_COLORS[i % LAYER_COLORS.length];
-                });
-
-                // 添加 GeoJSON 图层
-                geojsonLayer = L.geoJSON(geojsonData, {
-                    // 线和面的样式：按图层着色
-                    style: (feature) => {
-                        const layer = feature.properties?.layer || '未知';
-                        const color = colorMap[layer] || '#4f8cff';
-                        return {
-                            color: color,
-                            weight: 2,
-                            opacity: 0.8,
-                            fillColor: color,
-                            fillOpacity: 0.15,
-                        };
-                    },
-                    // 点的样式
-                    pointToLayer: (feature, latlng) => {
-                        const layer = feature.properties?.layer || '未知';
-                        const color = colorMap[layer] || '#4f8cff';
-                        return L.circleMarker(latlng, {
-                            radius: 4,
-                            fillColor: color,
-                            color: '#fff',
-                            weight: 1,
-                            fillOpacity: 0.9,
-                        });
-                    },
-                    // 点击弹出属性信息
-                    onEachFeature: (feature, layer) => {
-                        if (feature.properties) {
-                            const props = feature.properties;
-                            let html = '<div style="font-size:13px;max-width:280px;">';
-                            html += `<b>图层:</b> ${props.layer || '-'}<br>`;
-                            html += `<b>类型:</b> ${props.entity_type || '-'}<br>`;
-                            if (props.text) {
-                                html += `<b>文字:</b> ${props.text}<br>`;
-                            }
-                            if (props.block_name) {
-                                html += `<b>块名:</b> ${props.block_name}<br>`;
-                            }
-                            if (props.attributes) {
-                                html += `<b>属性:</b><br>`;
-                                for (const [k, v] of Object.entries(props.attributes)) {
-                                    html += `&nbsp;&nbsp;${k}: ${v}<br>`;
-                                }
-                            }
-                            html += '</div>';
-                            layer.bindPopup(html);
-                        }
-                    },
-                }).addTo(map);
-
-                // 自动缩放到 GeoJSON 范围
-                if (geojsonLayer.getBounds().isValid()) {
-                    map.fitBounds(geojsonLayer.getBounds(), { padding: [30, 30] });
-                }
-
-                // 更新图层颜色图例
-                updateLayerTable(layerStats, colorMap);
-            }, 50);
-        }
-
         // ========== 更新统计信息 ==========
         function showStats(stats) {
             document.getElementById('stat-features').textContent = stats.feature_count;
             document.getElementById('stat-layers').textContent = Object.keys(stats.layer_stats).length;
             statsCard.style.display = 'block';
-        }
 
-        function updateLayerTable(layerStats, colorMap) {
             const tbody = document.querySelector('#layer-table tbody');
             tbody.innerHTML = '';
-            // 按数量从大到小排列
-            const sorted = Object.entries(layerStats).sort((a, b) => b[1] - a[1]);
+            const sorted = Object.entries(stats.layer_stats).sort((a, b) => b[1] - a[1]);
             for (const [name, count] of sorted) {
-                const color = colorMap[name] || '#4f8cff';
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${name}</td>
-                    <td>${count}</td>
-                    <td><span class="legend-dot" style="background:${color}"></span></td>
-                `;
+                tr.innerHTML = `<td>${name}</td><td>${count}</td>`;
                 tbody.appendChild(tr);
             }
         }
 
+        // ========== 导出 DXF/DWG 按钮 ==========
+        btnExport.addEventListener('click', async () => {
+            if (!currentGeojson) return;
+
+            const fmt = document.getElementById('export-format').value;
+            const targetCrs = document.getElementById('export-target-crs').value.trim() || null;
+
+            btnExport.disabled = true;
+            exportStatus.className = 'export-status loading';
+            exportStatus.textContent = `正在导出 ${fmt.toUpperCase()}，请稍候...`;
+
+            try {
+                const response = await fetch('/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        geojson: currentGeojson,
+                        format: fmt,
+                        target_crs: targetCrs,
+                    }),
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `export.${fmt}`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    exportStatus.className = 'export-status';
+                    exportStatus.textContent = `${fmt.toUpperCase()} 导出成功！`;
+                } else {
+                    const data = await response.json();
+                    exportStatus.className = 'export-status error';
+                    exportStatus.textContent = data.error || '导出失败';
+                }
+            } catch (err) {
+                exportStatus.className = 'export-status error';
+                exportStatus.textContent = '网络错误: ' + err.message;
+            } finally {
+                btnExport.disabled = false;
+            }
+        });
+
         // ========== 下载按钮 ==========
         btnDownload.addEventListener('click', () => {
             if (currentTaskId) {
-                // 通过后端接口下载
                 window.location.href = `/download/${currentTaskId}`;
             } else if (currentGeojson) {
-                // 前端直接生成下载（降级方案）
                 const blob = new Blob([JSON.stringify(currentGeojson, null, 2)], {
                     type: 'application/geo+json',
                 });
@@ -708,30 +653,26 @@
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            // 防止没有选择文件时提交
             if (!fileInput.files || !fileInput.files.length) {
                 statusDiv.className = 'status error';
                 statusDiv.textContent = '请先选择一个 CAD 文件';
                 return;
             }
 
-            // 防止重复提交
             if (btnConvert.disabled) return;
 
-            // 重置状态
             btnConvert.disabled = true;
             btnConvert.textContent = '转换中...';
             btnDownload.style.display = 'none';
+            exportSection.classList.remove('visible');
             statsCard.style.display = 'none';
             statusDiv.className = 'status loading';
             statusDiv.textContent = '正在转换，请稍候...';
             currentTaskId = null;
             currentGeojson = null;
 
-            // 手动构建 FormData，确保文件被正确添加
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
-            // 添加其他表单字段
             for (const input of form.querySelectorAll('input[name]:not([type="file"])')) {
                 if (input.type === 'checkbox') {
                     if (input.checked) formData.append(input.name, 'on');
@@ -749,21 +690,18 @@
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    // 转换成功
                     currentTaskId = data.task_id;
                     currentGeojson = data.geojson;
 
                     statusDiv.className = 'status success';
                     statusDiv.textContent = `转换成功！共 ${data.stats.feature_count} 个要素，${Object.keys(data.stats.layer_stats).length} 个图层`;
 
-                    // 显示下载按钮
                     btnDownload.style.display = 'block';
+                    exportSection.classList.add('visible');
+                    exportStatus.textContent = '';
+                    exportStatus.className = 'export-status';
 
-                    // 显示统计
                     showStats(data.stats);
-
-                    // 地图预览
-                    showGeojsonOnMap(data.geojson, data.stats.layer_stats);
                 } else {
                     statusDiv.className = 'status error';
                     statusDiv.textContent = data.error || '转换失败';

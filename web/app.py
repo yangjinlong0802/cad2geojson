@@ -28,6 +28,8 @@ from flask import (
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.converter import ConversionConfig, convert
+from src.geojson_to_dxf import ExportConfig, export_geojson_to_dxf
+from src.renderer import RenderPipeline
 
 # 获取当前模块的日志记录器
 logger = logging.getLogger(__name__)
@@ -134,8 +136,7 @@ def convert_file():
         )
 
         # 执行转换
-        result = convert(config)
-        result_path = result.output_path
+        result_path = convert(config)
 
         # 读取转换结果的 GeoJSON 内容，返回给前端预览
         import json as json_module
@@ -168,11 +169,6 @@ def convert_file():
             geom_type = feat.get("geometry", {}).get("type", "未知")
             type_stats[geom_type] = type_stats.get(geom_type, 0) + 1
 
-        # 构建诊断统计（如果有 ezdxf 引擎的诊断数据）
-        diagnostics_data = None
-        if result.diagnostics:
-            diagnostics_data = result.diagnostics.to_dict()
-
         return jsonify({
             "success": True,
             "task_id": task_id,
@@ -183,7 +179,6 @@ def convert_file():
                 "layer_stats": layer_stats,
                 "type_stats": type_stats,
             },
-            "diagnostics": diagnostics_data,
         })
 
     except FileNotFoundError as e:
@@ -197,82 +192,125 @@ def convert_file():
         return jsonify({"error": f"服务器错误: {str(e)}"}), 500
 
 
-@app.route("/diagnostics")
-def diagnostics_page():
-    """诊断测试页面：批量上传文件查看实体类型转换成功率"""
-    return render_template("diagnostics.html")
-
-
-@app.route("/diagnose", methods=["POST"])
-def diagnose_file():
+@app.route("/render", methods=["POST"])
+def render_geojson():
     """
-    诊断接口：接收单个 CAD 文件，执行转换并返回诊断统计。
+    GeoJSON → SVG 渲染接口。
 
-    使用 auto 引擎（ezdxf + GDAL 双引擎合并），返回 ezdxf 引擎的
-    实体类型级别统计数据，包含每种类型的成功/失败/原因。
+    接收：
+        JSON body: {"geojson": <FeatureCollection>, "api_key": "...（可选）"}
+        或 multipart/form-data: geojson_file 字段上传 .geojson 文件
+
+    返回：
+        {"svg": "...", "strategy": "A/B/C/D", "warnings": [...], "elapsed": 1.2}
     """
-    if "file" not in request.files:
-        return jsonify({"error": "未选择文件"}), 400
+    import json as json_module
 
-    file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"error": "文件名为空"}), 400
+    # ── 从请求中提取 GeoJSON 数据 ─────────────────────────────────────
+    geojson_data = None
+    api_key = None
 
-    if not allowed_file(file.filename):
-        return jsonify({"error": f"不支持的格式: {Path(file.filename).suffix}"}), 400
+    if request.is_json:
+        body = request.get_json()
+        geojson_data = body.get("geojson")
+        api_key = body.get("api_key")
+    elif "geojson_file" in request.files:
+        f = request.files["geojson_file"]
+        geojson_data = json_module.loads(f.read().decode("utf-8"))
+        api_key = request.form.get("api_key")
+    else:
+        return jsonify({"error": "请提供 JSON body（含 geojson 字段）或上传 geojson_file 文件"}), 400
 
-    # 创建临时目录
-    task_id = uuid.uuid4().hex[:8]
-    upload_dir = UPLOAD_DIR / task_id
-    result_dir = RESULT_DIR / task_id
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    result_dir.mkdir(parents=True, exist_ok=True)
+    if not geojson_data:
+        return jsonify({"error": "GeoJSON 数据为空"}), 400
 
+    # ── 执行渲染管线 ──────────────────────────────────────────────────
     try:
-        # 保存上传文件
-        original_name = Path(file.filename).name
-        input_path = upload_dir / original_name
-        file.save(str(input_path))
+        pipeline = RenderPipeline(api_key=api_key or None)
+        result = pipeline.run(geojson_data)
 
-        # 输出路径
-        output_name = Path(original_name).stem + ".geojson"
-        output_path = str(result_dir / output_name)
+        return jsonify({
+            "svg": result.svg,
+            "strategy": result.strategy,
+            "is_valid": result.is_valid,
+            "warnings": result.warnings,
+            "errors": result.errors,
+            "elapsed": round(result.elapsed_sec, 2),
+        })
 
-        # 使用 auto 引擎（双引擎合并）进行转换
-        config = ConversionConfig(
-            input_file=str(input_path),
-            output_file=output_path,
-            no_transform=True,  # 诊断模式不做坐标转换
-            engine="auto",
-        )
+    except RuntimeError as e:
+        logger.error(f"渲染失败: {e}")
+        return jsonify({"error": f"渲染失败: {str(e)}"}), 500
+    except Exception as e:
+        logger.exception(f"渲染未预期错误: {e}")
+        return jsonify({"error": f"服务器错误: {str(e)}"}), 500
 
-        result = convert(config)
 
-        # 构建响应
-        response_data = {
-            "filename": original_name,
-            "output": result.output_path,
+@app.route("/export", methods=["POST"])
+def export_to_cad():
+    """
+    GeoJSON → DXF/DWG 导出接口。
+
+    接收（JSON body）：
+        {
+            "geojson":    <FeatureCollection>,
+            "format":     "dxf" | "dwg"（默认 dxf）,
+            "target_crs": "EPSG:4526"（可选，WGS84→工程坐标系反向转换）
         }
 
-        # 添加诊断统计
-        if result.diagnostics:
-            response_data["diagnostics"] = result.diagnostics.to_dict()
-        else:
-            response_data["diagnostics"] = None
+    返回：
+        DXF 或 DWG 文件下载（Content-Disposition: attachment）
+    """
+    import json as json_module
 
-        return jsonify(response_data)
+    if not request.is_json:
+        return jsonify({"error": "请提供 JSON body（含 geojson 字段）"}), 400
 
+    body = request.get_json()
+    geojson_data = body.get("geojson")
+    fmt = (body.get("format") or "dxf").lower()
+    target_crs = body.get("target_crs") or None
+
+    if not geojson_data:
+        return jsonify({"error": "GeoJSON 数据为空"}), 400
+
+    if fmt not in ("dxf", "dwg"):
+        return jsonify({"error": f"不支持的格式: {fmt!r}，仅支持 dxf 或 dwg"}), 400
+
+    # 每次导出使用独立目录，避免并发冲突
+    task_id = uuid.uuid4().hex[:8]
+    result_dir = RESULT_DIR / task_id
+    result_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = ".dwg" if fmt == "dwg" else ".dxf"
+    output_path = result_dir / f"export{ext}"
+
+    try:
+        config = ExportConfig(
+            input_file="upload.geojson",  # 仅用于生成默认输出文件名，不会实际读取
+            output_file=str(output_path),
+            target_crs=target_crs,
+            format=fmt,
+        )
+        out_path = export_geojson_to_dxf(geojson_data, config)
+
+        # 设置对应的 MIME 类型
+        mimetype = "application/acad" if fmt == "dwg" else "application/dxf"
+        return send_file(
+            out_path,
+            as_attachment=True,
+            download_name=f"export{ext}",
+            mimetype=mimetype,
+        )
+
+    except ValueError as e:
+        return jsonify({"error": f"参数错误: {str(e)}"}), 400
+    except RuntimeError as e:
+        logger.error(f"导出失败: {e}")
+        return jsonify({"error": f"导出失败: {str(e)}"}), 500
     except Exception as e:
-        logger.exception(f"诊断失败 ({file.filename}): {e}")
-        return jsonify({"error": str(e)}), 500
-
-    finally:
-        # 清理临时文件
-        try:
-            shutil.rmtree(str(upload_dir), ignore_errors=True)
-            shutil.rmtree(str(result_dir), ignore_errors=True)
-        except Exception:
-            pass
+        logger.exception(f"导出未预期错误: {e}")
+        return jsonify({"error": f"服务器错误: {str(e)}"}), 500
 
 
 @app.route("/download/<task_id>")
